@@ -37,7 +37,7 @@ uint32_t last_measurement_time_ms = 0;
 
 static int16_t raw_temp = 0;
 static int16_t raw_diff_pressure = 0;
-static int16_t diff_pressure_adc_0 = 0;
+static int16_t diff_pressure_abs = 0;
 static int16_t diff_pressure_smooth = 0;
 static float atmospheric_pressure = 101325.0; // For ground level, should use ms5611 to provide
 
@@ -131,24 +131,11 @@ void ms4525_read(float *differential_pressure, float *temp, float* velocity)
   (*temp) = (0.097703957f * raw_temp)  + 223.0; // K
 
 
-  // Then, Calculate the differential pressure
-  diff_pressure_adc_0 = raw_diff_pressure - diff_pressure_offset ;
-  /// TODO: FILTER THE DIFF PRESSURE (USE LPF)
-  int abs_diff_pressure_adc =  abs(diff_pressure_adc_0 - diff_pressure_smooth);
-  float smoothing_scale = 0;
-  if (abs_diff_pressure_adc <= FILTERING4525_ADC_MIN_AT)
-  {
-    smoothing_scale = FILTERING4525_ADC_MIN ;
-  }
-  else if (abs_diff_pressure_adc >= FILTERING4525_ADC_MAX_AT)
-  {
-    smoothing_scale = FILTERING4525_ADC_MAX ;
-  }
-  else
-  {
-    smoothing_scale = FILTERING4525_ADC_MIN + ( FILTERING4525_ADC_MAX - FILTERING4525_ADC_MIN) * (abs_diff_pressure_adc - FILTERING4525_ADC_MIN_AT) / (FILTERING4525_ADC_MAX_AT - FILTERING4525_ADC_MIN_AT) ;
-  }
-  diff_pressure_smooth += smoothing_scale * ( diff_pressure_adc_0 - diff_pressure_smooth );
+  // Then, Calculate the differential pressure (smooth with LPF)
+  float LPF_alpha = 0.2;
+  diff_pressure_abs = raw_diff_pressure - diff_pressure_offset ;
+  diff_pressure_smooth += LPF_alpha * (diff_pressure_abs - diff_pressure_smooth);
+
   (*differential_pressure) = -diff_pressure_smooth;
 
   // Finally, calculate the airspeed
@@ -223,9 +210,6 @@ void ms4525_request_async_update(void)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstrict-aliasing"
-
 static float fastInvSqrt(float x)
 {
   long i;
@@ -237,8 +221,7 @@ static float fastInvSqrt(float x)
   i  = * (long *) &y;                         // evil floating point bit level hacking
   i  = 0x5f3759df - (i >> 1);
   y  = * (float *) &i;
-  y  = y * (threehalfs - (x2 * y * y));       // 1st iteration
-  y  = y * (threehalfs - (x2 * y * y));       // 2nd iteration, this can be removed
+  y  = y * (threehalfs - (x2 * y * y));
 
   return y;
 }
