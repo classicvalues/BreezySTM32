@@ -132,7 +132,7 @@ void ms4525_read(float *differential_pressure, float *temp, float* velocity)
 
 
   // Then, Calculate the differential pressure (smooth with LPF)
-  float LPF_alpha = 0.2;
+  float LPF_alpha = 0.01;
   diff_pressure_abs = raw_diff_pressure - diff_pressure_offset ;
   diff_pressure_smooth += LPF_alpha * (diff_pressure_abs - diff_pressure_smooth);
 
