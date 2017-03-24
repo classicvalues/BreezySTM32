@@ -222,16 +222,43 @@ void mpu6050_init(bool enableInterrupt, uint16_t * acc1G, float * gyroScale, int
     mpuWriteRegisterI2C(MPU_RA_INT_ENABLE, 0x01); // DATA_RDY_EN interrupt enable
 }
 
+void mpu6050_read_all(int16_t *accData, int16_t *gyroData, int16_t* tempData)
+{
+    uint8_t buf[14];
+
+    mpuReadRegisterI2C(MPU_RA_ACCEL_XOUT_H, buf, 14);
+
+    accData[0] = (int16_t)((buf[0] << 8) | buf[1]);
+    accData[1] = (int16_t)((buf[2] << 8) | buf[3]);
+    accData[2] = (int16_t)((buf[4] << 8) | buf[5]);
+
+    (*tempData) = (int16_t)((buf[6] << 8) | buf[7]);
+
+    gyroData[0] = (int16_t)((buf[8] << 8) | buf[9]);
+    gyroData[1] = (int16_t)((buf[10] << 8) | buf[11]);
+    gyroData[2] = (int16_t)((buf[12] << 8) | buf[13]);
+}
+
 
 void mpu6050_read_accel(int16_t *accData)
 {
     uint8_t buf[6];
 
-    mpuReadRegisterI2C(MPU_RA_ACCEL_XOUT_H, buf, 6);
+    if (mpuReadRegisterI2C(MPU_RA_ACCEL_XOUT_H, buf, 6))
+    {
 
-    accData[0] = (int16_t)((buf[0] << 8) | buf[1]);
-    accData[1] = (int16_t)((buf[2] << 8) | buf[3]);
-    accData[2] = (int16_t)((buf[4] << 8) | buf[5]);
+      accData[0] = (int16_t)((buf[0] << 8) | buf[1]);
+      accData[1] = (int16_t)((buf[2] << 8) | buf[3]);
+      accData[2] = (int16_t)((buf[4] << 8) | buf[5]);
+
+      for (int i = 0; i <3; i++)
+      {
+        if(accData[i] < -10000)
+        {
+          volatile int debug = 1;
+        }
+      }
+    }
 }
 
 
