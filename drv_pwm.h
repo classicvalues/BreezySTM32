@@ -49,3 +49,4 @@ void     pwmInit(bool useCPPM, bool usePwmFilter, bool fastPWM, uint32_t motorPw
 void     pwmWriteMotor(uint8_t index, uint16_t value);
 uint16_t pwmRead(uint8_t channel);
 uint32_t pwmLastUpdate();
+bool     pwmNewData();

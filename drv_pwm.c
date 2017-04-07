@@ -67,6 +67,7 @@ static uint16_t        captures[MAX_INPUTS];
 static pwmWriteFuncPtr pwmWritePtr = NULL;
 static uint8_t         pwmFilter = 0;
 static uint32_t        pwmLastUpdateTime_ms = 0;
+static bool            new_data = false;
 
 #define PWM_TIMER_MHZ 1
 #define PWM_TIMER_8_MHZ 8
@@ -186,6 +187,8 @@ uint32_t pwmLastUpdate()
 static void ppmCallback(uint8_t port, uint16_t capture)
 {
     pwmLastUpdateTime_ms = millis();
+    new_data = true;
+
     (void)port;
     uint16_t diff;
     static uint16_t now;
@@ -209,6 +212,8 @@ static void ppmCallback(uint8_t port, uint16_t capture)
 static void pwmCallback(uint8_t port, uint16_t capture)
 {
     pwmLastUpdateTime_ms = millis();
+    new_data = true;
+
     if (pwmPorts[port].state == 0) {
         pwmPorts[port].rise = capture;
         pwmPorts[port].state = 1;
@@ -335,5 +340,11 @@ void pwmWriteMotor(uint8_t index, uint16_t value)
 
 uint16_t pwmRead(uint8_t channel)
 {
+    new_data = false;
     return captures[channel];
+}
+
+bool pwmNewData()
+{
+    return new_data;
 }
