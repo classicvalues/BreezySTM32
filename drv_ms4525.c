@@ -35,18 +35,17 @@ inline static float absf(float x);
 uint32_t polling_interval_ms = 20; // (ms)
 uint32_t last_measurement_time_ms = 0;
 
-static int16_t raw_temp = 0;
-static int16_t raw_diff_pressure = 0;
-static int16_t diff_pressure_abs = 0;
-static int16_t diff_pressure_smooth = 0;
-static float atmospheric_pressure = 101325.0; // For ground level, should use ms5611 to provide
-
-const float psi_to_Pa = 6894.757f;
+static float temp = 0.0f;
+static float raw_diff_pressure_Pa = 0.0f;
+static float velocity = 0.0f;
+static float diff_pressure_abs_Pa = 0.0f;
+static float diff_pressure_smooth_Pa = 0.0f;
+static float atmospheric_pressure = 101325.0f; // For ground level, should use ms5611 to provide
 
 static bool calibrated = true;
-static volatile int32_t diff_pressure_offset = 0;
+static volatile float diff_pressure_offset = 0.0f;
 
-static inline int sign(float x)
+static inline float sign(float x)
 {
   return (x > 0) - (x < 0);
 }
@@ -59,20 +58,20 @@ void ms4525_start_calibration()
 static void calibrate()
 {
   static uint16_t calibrate_count = 0;
-  static int32_t calibration_sum = 0;
+  static float calibration_sum = 0;
 
   calibrate_count++ ;
   if (calibrate_count == 256 )
   {
-    diff_pressure_offset =  (int32_t)(calibration_sum / 128); //there has been 128 reading (256-128)
+    diff_pressure_offset =  calibration_sum / 128.0f; //there has been 128 reading (256-128)
     calibrated = true;
-    calibration_sum = 0;
+    calibration_sum = 0.0f;
     calibrate_count = 0;
   }
   else if  (calibrate_count >= 128  )
   {
     // Let the sensor settle for the first 128 measurements
-    calibration_sum += raw_diff_pressure ;
+    calibration_sum += raw_diff_pressure_Pa;
   }
 }
 
@@ -103,44 +102,40 @@ void ms4525_update()
     last_measurement_time_ms = now_ms;
     i2cRead(MS4525_ADDR, 0xFF, 4, buf);
 
-    uint8_t status = (buf[0] >> 5); // first two bits are status bits
+    uint8_t status = (buf[0] & 0xC0) >> 6;
     if(status == 0x00) // good data packet
     {
-      raw_temp = (buf[2] << 8) + buf[3];
-      raw_temp = (0xFFe0 & raw_temp) >> 5;
+      int16_t raw_diff_pressure = 0x3FFF & ((buf[0] << 8) + buf[1]);
+      int16_t raw_temp = ( 0xFFE0 & ((buf[2] << 8) + buf[3])) >> 5;
 
-      raw_diff_pressure =  ( ( (buf[0] << 8) + buf[1] ) & 0x3FFF) - 0x2000;
+      // Convert to Pa and K
+      raw_diff_pressure_Pa = -(((float)raw_diff_pressure - 1638.3f) / 6553.2f - 1.0f) * 6894.757;
+      temp = (0.097703957f * raw_temp)  + 223.0; // K
 
-      if(!calibrated)
-        calibrate();
+      // Filter diff pressure measurement
+      float LPF_alpha = 0.1;
+      diff_pressure_abs_Pa = raw_diff_pressure_Pa - diff_pressure_offset;
+      diff_pressure_smooth_Pa += LPF_alpha * (diff_pressure_abs_Pa - diff_pressure_smooth_Pa);
+
+      velocity = sign(diff_pressure_smooth_Pa) * 24.574f/fastInvSqrt((absf(diff_pressure_smooth_Pa) * temp  /  atmospheric_pressure));
+
     }
     else // stale data packet - ignore
     {
       return;
     }
+
+    if(!calibrated)
+      calibrate();
   }
-  else
-  {
-    return;
-  }
+
 }
 
-void ms4525_read(float *differential_pressure, float *temp, float* velocity)
+void ms4525_read(float *diff_press, float *temperature, float* vel)
 {
-  // First, calculate temperature
-  (*temp) = (0.097703957f * raw_temp)  + 223.0; // K
-
-
-  // Then, Calculate the differential pressure (smooth with LPF)
-  float LPF_alpha = 0.01;
-  diff_pressure_abs = raw_diff_pressure - diff_pressure_offset ;
-  diff_pressure_smooth += LPF_alpha * (diff_pressure_abs - diff_pressure_smooth);
-
-  (*differential_pressure) = -diff_pressure_smooth;
-
-  // Finally, calculate the airspeed
-  // in m/s, relies on accurate reading of atmospheric pressure, so we might want to use the barometer to supply good values for that
-  (*velocity) =  sign(diff_pressure_smooth) * 24.574 * -1.0/fastInvSqrt((absf(diff_pressure_smooth) * (*temp)  /  atmospheric_pressure));
+  (*temperature) = temp;
+  (*diff_press) = diff_pressure_smooth_Pa;
+  (*vel) = velocity;
 }
 
 void ms4525_set_atm(uint32_t pressure_Pa)
