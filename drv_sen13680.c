@@ -33,7 +33,7 @@
 
 static uint8_t read_buffer[2] = {0,0};
 static uint64_t last_update_time_us;
-static uint64_t distance;
+static int32_t distance;
 
 
 
