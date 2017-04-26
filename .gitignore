@@ -4,7 +4,7 @@ examples/*/*.o
 *.o
 
 *.config
-*.creator
+*.creator*
 *.files
 *.user
 *.includes
