@@ -31,9 +31,7 @@
 
 #define SEN13680_DEFAULT_ADDRESS 0x62
 
-static uint8_t read_buffer[2] = {0,0};
-static uint64_t last_update_time_us;
-static int32_t distance;
+static int16_t distance;
 
 
 
@@ -41,7 +39,23 @@ bool sen13680_init()
 {
   // check for device SEN13680_DEFAULT_ADDRESS and set
   // to read fast and noisy if it's there
-  return i2cWrite(SEN13680_DEFAULT_ADDRESS, 0x04, 0x00);
+  bool success = true;
+  if (i2cWrite(SEN13680_DEFAULT_ADDRESS, 0x00, 0x00))
+  {
+    // Set the time between measurements (0x45).  0x04 means 250 Hz
+    success &= i2cWrite(SEN13680_DEFAULT_ADDRESS, 0x45, 0x04);
+    // Set the mode pin to default setting
+    success &= i2cWrite(SEN13680_DEFAULT_ADDRESS, 0x04, 0x21);
+    // Set the number of measurements to be taken (continuous)
+    success &= i2cWrite(SEN13680_DEFAULT_ADDRESS, 0x11, 0xFF);
+    // Initiate Reading
+    success &= i2cWrite(SEN13680_DEFAULT_ADDRESS, 0x00, 0x04);
+  }
+  else
+  {
+    success = false;
+  }
+  return success;
 }
 
 
@@ -49,21 +63,19 @@ void sen13680_update()
 {
   // get current time
   uint64_t now_us = micros();
+  static uint64_t last_update_time_us = 0;
 
   // populate new measurement at 100hz
   if (now_us > last_update_time_us + 10000)
   {
-    // save current time and wipe read_buffer
+    // save current time
     last_update_time_us = now_us;
-    read_buffer[0] = 0;
-    read_buffer[1] = 0;
+    uint8_t read_buffer[2] = {100,100};
 
     // Request and read a lidar measurement
-    i2cWrite(SEN13680_DEFAULT_ADDRESS, 0x00, 0x04);
     i2cRead(SEN13680_DEFAULT_ADDRESS, 0x8F, 2, read_buffer);
 
-    // convert to cm
-    distance = (read_buffer[0] << 8) + read_buffer[1];
+    distance = (int16_t)(read_buffer[0] << 8) + read_buffer[1];
   }
 }
 
