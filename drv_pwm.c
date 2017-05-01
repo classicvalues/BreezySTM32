@@ -340,8 +340,15 @@ void pwmWriteMotor(uint8_t index, uint16_t value)
 
 uint16_t pwmRead(uint8_t channel)
 {
-    new_data = false;
-    return captures[channel];
+    if(millis() > pwmLastUpdateTime_ms + 40)
+    {
+      return 0;
+    }
+    else
+    {
+      new_data = false;
+      return captures[channel];
+    }
 }
 
 bool pwmNewData()
