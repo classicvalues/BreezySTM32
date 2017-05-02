@@ -29,6 +29,7 @@ static bool lidar_present;
 void setup(void)
 {
   i2cInit(I2CDEV_2);
+  i2cWrite(0, 0, 0);
 }
 
 // look for the lidar and then read measurements
@@ -38,7 +39,7 @@ void loop(void)
   {
     sen13680_update();
     float distance = sen13680_read();
-    printf("distance = %d.%dm\n", (uint32_t)distance, (uint32_t)(sen13680_read()*1000));
+    printf("distance = %d.%dm\n", (uint32_t)distance, (uint32_t)(distance*1000)%1000);
   }
   else
   {

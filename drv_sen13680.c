@@ -31,7 +31,7 @@
 
 #define SEN13680_DEFAULT_ADDRESS 0x62
 
-static int16_t distance;
+static float distance;
 
 
 
@@ -44,12 +44,16 @@ bool sen13680_init()
   {
     // Set the time between measurements (0x45).  0x04 means 250 Hz
     success &= i2cWrite(SEN13680_DEFAULT_ADDRESS, 0x45, 0x04);
+    delay(10);
     // Set the mode pin to default setting
     success &= i2cWrite(SEN13680_DEFAULT_ADDRESS, 0x04, 0x21);
+    delay(10);
     // Set the number of measurements to be taken (continuous)
     success &= i2cWrite(SEN13680_DEFAULT_ADDRESS, 0x11, 0xFF);
+    delay(10);
     // Initiate Reading
     success &= i2cWrite(SEN13680_DEFAULT_ADDRESS, 0x00, 0x04);
+    delay(10);
   }
   else
   {
@@ -73,13 +77,17 @@ void sen13680_update()
     uint8_t read_buffer[2] = {100,100};
 
     // Request and read a lidar measurement
-    i2cRead(SEN13680_DEFAULT_ADDRESS, 0x8F, 2, read_buffer);
+    // Lidar Lite is stupid, and needs a stop signal before the second start signal
+    // in an I2C read.  So, I'm writing the address to nowhere, stopping, starting again
+    // and then reading from nowhere
+    i2cWrite(SEN13680_DEFAULT_ADDRESS, 0xFF, 0x8F);
+    i2cRead(SEN13680_DEFAULT_ADDRESS, 0xFF, 2, read_buffer);
 
-    distance = (int16_t)(read_buffer[0] << 8) + read_buffer[1];
+    distance = (float)((int16_t)(read_buffer[0] << 8) + read_buffer[1])/100.0;
   }
 }
 
 float sen13680_read()
 {
-  return (float)distance;
+  return distance;
 }
