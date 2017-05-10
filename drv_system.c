@@ -90,6 +90,7 @@ void systemInit(void)
     int i, gpio_count = sizeof(gpio_setup) / sizeof(gpio_setup[0]);
 
     // Configure NVIC preempt/priority groups
+    // This means we have two bits for the preemption priority, two bits for sub-priority
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
 
     // Turn on clocks for stuff we use
@@ -121,6 +122,9 @@ void systemInit(void)
 
     // SysTick
     SysTick_Config(SystemCoreClock / 1000);
+
+    // escalate the priority of the systick IRQn to highest
+    NVIC_SetPriority(SysTick_IRQn, 0);
 }
 
 void delayMicroseconds(uint32_t us)
