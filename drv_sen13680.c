@@ -59,6 +59,11 @@ bool sen13680_init()
   {
     success = false;
   }
+  if (!success)
+  {
+    //257 is the default value returned when the lidar isnt connected
+    distance = 257;
+  }
   return success;
 }
 
