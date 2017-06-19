@@ -59,6 +59,10 @@ bool sen13680_init()
   {
     success = false;
   }
+  if (!success)
+  {
+    distance = -1;
+  }
   return success;
 }
 
