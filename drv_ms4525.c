@@ -115,7 +115,7 @@ void ms4525_update()
       // Filter diff pressure measurement
       float LPF_alpha = 0.1;
       diff_pressure_abs_Pa = raw_diff_pressure_Pa - diff_pressure_offset;
-      diff_pressure_smooth_Pa += diff_pressure_abs_Pa - LPF_alpha * (diff_pressure_abs_Pa - diff_pressure_smooth_Pa);
+      diff_pressure_smooth_Pa = diff_pressure_abs_Pa - LPF_alpha * (diff_pressure_abs_Pa - diff_pressure_smooth_Pa);
 
       velocity = sign(diff_pressure_smooth_Pa) * 24.574f/fastInvSqrt((absf(diff_pressure_smooth_Pa) * temp  /  atmospheric_pressure));
 
