@@ -296,16 +296,16 @@ bool ms5611_init(void)
 
 void ms5611_update(void)
 {
-  static uint64_t next_time_us = 0;
+  static uint32_t next_time_ms = 0;
   static int state = 0;
 
-  if(micros() > next_time_us)
+  if(millis() > next_time_ms)
   {
     if (state)
     {
       ms5611_get_up();
       ms5611_start_ut();
-      next_time_us += 10000;
+      next_time_ms += 10;
       state = 0;
     }
     else
@@ -313,7 +313,7 @@ void ms5611_update(void)
       ms5611_get_ut();
       ms5611_start_up();
       state = 1;
-      next_time_us += 10000;
+      next_time_ms += 10;
       ms5611_calculate();
     }
   }

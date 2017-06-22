@@ -456,7 +456,7 @@ void i2cInit(I2CDevice index)
   // I2C ER Interrupt
   nvic.NVIC_IRQChannel = i2cHardwareMap[index].er_irq;
   // Set the priority to just below the systick interrupt
-  nvic.NVIC_IRQChannelPreemptionPriority = 0;
+  nvic.NVIC_IRQChannelPreemptionPriority = 2;
   nvic.NVIC_IRQChannelSubPriority = 1;
   nvic.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&nvic);
