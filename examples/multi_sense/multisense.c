@@ -95,7 +95,7 @@ void loop(void)
   if(mag_present)
   {
     hmc5883l_request_async_update();
-    hmc5883l_read_magnetometer(mag_data);
+    hmc5883l_async_read(mag_data);
   }
 
   // Update Sonar

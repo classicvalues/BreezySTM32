@@ -58,14 +58,14 @@
  *             GN2 |  GN1 |  GN0 |   Mag Input   | Gain       | Output Range
  *                 |      |      |  Range[Ga]    | [LSB/mGa]  |
  *            ------------------------------------------------------
- *              0  |  0   |  0   |  ±0.88Ga      |   1370     | 0xF800?0x07FF (-2048:2047)
- *              0  |  0   |  1   |  ±1.3Ga (def) |   1090     | 0xF800?0x07FF (-2048:2047)
- *              0  |  1   |  0   |  ±1.9Ga       |   820      | 0xF800?0x07FF (-2048:2047)
- *              0  |  1   |  1   |  ±2.5Ga       |   660      | 0xF800?0x07FF (-2048:2047)
- *              1  |  0   |  0   |  ±4.0Ga       |   440      | 0xF800?0x07FF (-2048:2047)
- *              1  |  0   |  1   |  ±4.7Ga       |   390      | 0xF800?0x07FF (-2048:2047)
- *              1  |  1   |  0   |  ±5.6Ga       |   330      | 0xF800?0x07FF (-2048:2047)
- *              1  |  1   |  1   |  ±8.1Ga       |   230      | 0xF800?0x07FF (-2048:2047)
+ *              0  |  0   |  0   |  ï¿½0.88Ga      |   1370     | 0xF800?0x07FF (-2048:2047)
+ *              0  |  0   |  1   |  ï¿½1.3Ga (def) |   1090     | 0xF800?0x07FF (-2048:2047)
+ *              0  |  1   |  0   |  ï¿½1.9Ga       |   820      | 0xF800?0x07FF (-2048:2047)
+ *              0  |  1   |  1   |  ï¿½2.5Ga       |   660      | 0xF800?0x07FF (-2048:2047)
+ *              1  |  0   |  0   |  ï¿½4.0Ga       |   440      | 0xF800?0x07FF (-2048:2047)
+ *              1  |  0   |  1   |  ï¿½4.7Ga       |   390      | 0xF800?0x07FF (-2048:2047)
+ *              1  |  1   |  0   |  ï¿½5.6Ga       |   330      | 0xF800?0x07FF (-2048:2047)
+ *              1  |  1   |  1   |  ï¿½8.1Ga       |   230      | 0xF800?0x07FF (-2048:2047)
  *                               |Not recommended|
  *
  * 4:0 CRB4-CRB: 0 This bit must be cleared for correct operation.
@@ -246,12 +246,12 @@ void mag_read_CB(void)
 
 void hmc5883l_request_async_update()
 {
-  static uint64_t last_update_us = 0;
-  uint64_t now = micros();
+  static uint64_t last_update_ms = 0;
+  uint64_t now = millis();
 
-  if(now - last_update_us > 6250)
+  if(now - last_update_ms > 15)
   {
-    // 160 Hz update rate (datasheet)
+    // 75 Hz update rate
     i2c_queue_job(READ,
                   MAG_ADDRESS,
                   MAG_DATA_REGISTER,
@@ -260,12 +260,12 @@ void hmc5883l_request_async_update()
                   &status,
                   &mag_read_CB);
 
-    last_update_us = now;
+    last_update_ms = now;
   }
   return;
 }
 
-void hmc5883l_read_magnetometer(int16_t *magData)
+void hmc5883l_async_read(int16_t *magData)
 {
   magData[0] = mag_data[X];
   magData[1] = mag_data[Y];
