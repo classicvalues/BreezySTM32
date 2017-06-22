@@ -43,6 +43,7 @@ along with BreezySTM32.  If not, see <http://www.gnu.org/licenses/>.
 #include "drv_flashfs.h"
 #include "drv_ms4525.h"
 #include "drv_hmc5883l.h"
+#include "breezyprintf.h"
 
 extern serialPort_t * Serial1;
 

@@ -170,21 +170,6 @@ void mpu6050_exti_init(int boardVersion)
   //    NVIC_SetPriority(EXTI15_10_IRQn, 1);
 }
 
-void EXTI15_10_IRQHandler(void)
-{
-  if (EXTI_GetITStatus(EXTI_Line13) != RESET)
-  {
-    volatile uint32_t ms, cycle_cnt;
-    do {
-        ms = millis();
-        cycle_cnt = SysTick->VAL;
-    } while (ms != millis());
-    imu_time_us = ms * 1000 + 1000 - cycle_cnt / 72;
-    new_imu_data = true;
-  }
-  EXTI_ClearITPendingBit(EXTI_Line13);
-}
-
 
 // ======================================================================
 void mpu6050_init(bool enableInterrupt, uint16_t * acc1G, float * gyroScale, int boardVersion)
@@ -242,7 +227,7 @@ void mpu6050_read_all(int16_t *accData, int16_t *gyroData, int16_t* tempData, ui
 {
   uint8_t buf[14];
 
-  mpuReadRegisterI2C(MPU_RA_ACCEL_XOUT_H, buf, 14);
+//  mpuReadRegisterI2C(MPU_RA_ACCEL_XOUT_H, buf, 14);
 
   accData[0] = (int16_t)((buf[0] << 8) | buf[1]);
   accData[1] = (int16_t)((buf[2] << 8) | buf[3]);
@@ -262,20 +247,12 @@ void mpu6050_read_accel(int16_t *accData)
 {
   uint8_t buf[6];
 
-  if (mpuReadRegisterI2C(MPU_RA_ACCEL_XOUT_H, buf, 6))
+//  if (mpuReadRegisterI2C(MPU_RA_ACCEL_XOUT_H, buf, 6))
   {
 
     accData[0] = (int16_t)((buf[0] << 8) | buf[1]);
     accData[1] = (int16_t)((buf[2] << 8) | buf[3]);
     accData[2] = (int16_t)((buf[4] << 8) | buf[5]);
-
-    for (int i = 0; i <3; i++)
-    {
-      if(accData[i] < -10000)
-      {
-        volatile int debug = 1;
-      }
-    }
   }
 }
 
@@ -284,7 +261,7 @@ void mpu6050_read_gyro(int16_t *gyroData)
 {
   uint8_t buf[6];
 
-  mpuReadRegisterI2C(MPU_RA_GYRO_XOUT_H, buf, 6);
+//  mpuReadRegisterI2C(MPU_RA_GYRO_XOUT_H, buf, 6);
 
   gyroData[0] = (int16_t)((buf[0] << 8) | buf[1]);
   gyroData[1] = (int16_t)((buf[2] << 8) | buf[3]);
@@ -295,7 +272,7 @@ void mpu6050_read_temperature(int16_t *tempData)
 {
   uint8_t buf[2];
 
-  mpuReadRegisterI2C(MPU_RA_TEMP_OUT_A, buf, 2);
+//  mpuReadRegisterI2C(MPU_RA_TEMP_OUT_A, buf, 2);
 
   *tempData = (int16_t)((buf[0] << 8) | buf[1]) / 4;
 }
@@ -326,13 +303,13 @@ void mpu6050_request_async_accel_read(int16_t *accData, volatile uint8_t *status
   // Current status of the job can be read by polling the
   // status variable, and the callback will be called when the function
   // is finished
-  i2c_queue_job(READ,
-                MPU_ADDRESS,
-                MPU_RA_ACCEL_XOUT_H,
-                accel_buffer,
-                6,
-                status,
-                &accel_read_CB);
+//  i2c_queue_job(READ,
+//                MPU_ADDRESS,
+//                MPU_RA_ACCEL_XOUT_H,
+//                accel_buffer,
+//                6,
+//                status,
+//                &accel_read_CB);
 }
 
 
@@ -347,33 +324,98 @@ void gyro_read_CB(void)
 
 void mpu6050_request_async_gyro_read(int16_t *gyroData, volatile uint8_t *status)
 {
-  gyro_data = gyroData;
-  i2c_queue_job(READ,
-                MPU_ADDRESS,
-                MPU_RA_GYRO_XOUT_H,
-                gyro_buffer,
-                6,
-                status,
-                &gyro_read_CB);
+//  gyro_data = gyroData;
+//  i2c_queue_job(READ,
+//                MPU_ADDRESS,
+//                MPU_RA_GYRO_XOUT_H,
+//                gyro_buffer,
+//                6,
+//                status,
+//                &gyro_read_CB);
 }
 
 static uint8_t temp_buffer[2];
 static volatile int16_t* temp_data;
 void temp_read_CB(void)
 {
-  LED0_ON;
   (*temp_data) = (int16_t)((temp_buffer[0] << 8)| temp_buffer[1])/4;
-  LED0_OFF;
 }
 
 void mpu6050_request_async_temp_read(volatile int16_t *tempData, volatile uint8_t *status)
 {
-  temp_data = tempData;
+//  temp_data = tempData;
+//  i2c_queue_job(READ,
+//                MPU_ADDRESS,
+//                MPU_RA_TEMP_OUT_A,
+//                temp_buffer,
+//                2,
+//                status,
+//                &temp_read_CB);
+}
+
+
+
+volatile static int16_t accel[3];
+volatile static int16_t gyro[3];
+volatile static int16_t temp;
+uint8_t all_buffer[14];
+void read_all_CB(void)
+{
+  accel[0] = (int16_t)((all_buffer[0] << 8) | all_buffer[1]);
+  accel[1] = (int16_t)((all_buffer[2] << 8) | all_buffer[3]);
+  accel[2] = (int16_t)((all_buffer[4] << 8) | all_buffer[5]);
+
+  temp = (int16_t)((all_buffer[6] << 8) | all_buffer[7]);
+
+  gyro[0] = (int16_t)((all_buffer[8] << 8) | all_buffer[9]);
+  gyro[1] = (int16_t)((all_buffer[10] << 8) | all_buffer[11]);
+  gyro[2] = (int16_t)((all_buffer[12] << 8) | all_buffer[13]);
+
+  new_imu_data = true;
+}
+
+void mpu6050_request_async_update_all()
+{
+  // Adds a new i2c job to the I2C job queue.
+  // Current status of the job can be read by polling the
+  // status variable, and the callback will be called when the function
+  // is finished
   i2c_queue_job(READ,
                 MPU_ADDRESS,
-                MPU_RA_TEMP_OUT_A,
-                temp_buffer,
-                2,
-                status,
-                &temp_read_CB);
+                MPU_RA_ACCEL_XOUT_H,
+                all_buffer,
+                14,
+                NULL,
+                &read_all_CB);
 }
+
+
+void mpu6050_async_read_all(volatile int16_t *accData, volatile int16_t *tempData, volatile int16_t *gyroData, volatile uint64_t* timeData)
+{
+  accData[0] = accel[0];
+  accData[1] = accel[1];
+  accData[2] = accel[2];
+  (*tempData) = temp;
+  gyroData[0] = gyro[0];
+  gyroData[1] = gyro[1];
+  gyroData[2] = gyro[2];
+  (*timeData) = imu_time_us;
+}
+
+//=====================================================================================
+
+void EXTI15_10_IRQHandler(void)
+{
+  if (EXTI_GetITStatus(EXTI_Line13) != RESET)
+  {
+    volatile uint32_t ms, cycle_cnt;
+    do {
+        ms = millis();
+        cycle_cnt = SysTick->VAL;
+    } while (ms != millis());
+    imu_time_us = ms * 1000 + 1000 - cycle_cnt / 72;
+    mpu6050_request_async_update_all();
+  }
+  EXTI_ClearITPendingBit(EXTI_Line13);
+}
+

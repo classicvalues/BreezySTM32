@@ -300,8 +300,8 @@ static void i2c_er_handler(void)
     }
   }
   I2Cx->SR1 &= ~0x0F00;                                               // reset all the error bits to clear the interrupt
-  if (status != NULL)
-    (*status) = I2C_JOB_ERROR;                                      // Update job status
+//  if (status != NULL)
+//    (*status) = I2C_JOB_ERROR;                                      // Update job status
   if (complete_CB != NULL)
       complete_CB();
   busy = 0;
@@ -413,9 +413,9 @@ void i2c_ev_handler(void)
     if (final_stop) {                                               // If there is a final stop and no more jobs, bus is inactive, disable interrupts to prevent BTF
       I2C_ITConfig(I2Cx, I2C_IT_EVT | I2C_IT_ERR, DISABLE);       // Disable EVT and ERR interrupts while bus inactive
     }
-    if (status != NULL){
-      (*status) = I2C_JOB_COMPLETE;                               // Update status
-    }
+//    if (status != NULL){
+//      (*status) = I2C_JOB_COMPLETE;                               // Update status
+//    }
     if (complete_CB != NULL){
       complete_CB();                                              // Call the custom callback (we are finished)
     }
@@ -550,7 +550,7 @@ void i2c_job_handler()
   i2cJob_t* job = i2c_buffer + i2c_buffer_tail;
 
   // First, change status to BUSY
-  (*job->status) = I2C_JOB_BUSY;
+//  (*job->status) = I2C_JOB_BUSY;
 
   // perform the appropriate job
   if(job->type == READ)
@@ -596,7 +596,7 @@ void i2c_queue_job(i2cJobType_t type, uint8_t addr_, uint8_t reg_, uint8_t *data
   job->CB = CB;
 
   // change job status
-  (*job->status) = I2C_JOB_QUEUED;
+//  (*job->status) = I2C_JOB_QUEUED;
 
   // Increment the buffer size
   i2c_buffer_count++;
