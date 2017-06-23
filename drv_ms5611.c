@@ -204,21 +204,21 @@ static void ms5611_get_up(void)
 
 static void ms5611_calibrate(float pre_adjust_altitude)
 {
-    static uint16_t calibration_counter = 0;
-    static float calibration_sum = 0.0f;
+  static uint16_t calibration_counter = 0;
+  static float calibration_sum = 0.0f;
 
-    calibration_counter++;
-    if(calibration_counter == 256)
-    {
-      offset = calibration_sum / 127.0;
-      calibration_counter = 0;
-      calibration_sum = 0.0f;
-      calibrated = true;
-    }
-    else if(calibration_counter > 128)
-    {
-      calibration_sum += pre_adjust_altitude;
-    }
+  calibration_counter++;
+  if(calibration_counter == 256)
+  {
+    offset = calibration_sum / 127.0;
+    calibration_counter = 0;
+    calibration_sum = 0.0f;
+    calibrated = true;
+  }
+  else if(calibration_counter > 128)
+  {
+    calibration_sum += pre_adjust_altitude;
+  }
 }
 
 static void ms5611_calculate()
@@ -340,37 +340,45 @@ static volatile uint8_t pressure_read_status = 0;
 static volatile uint8_t pressure_start_status = 0;
 static uint8_t baro_state = 0;
 static uint32_t next_update_ms = 0;
+static uint32_t baro_last_update_watchdog_ms = 0;
 
 void temp_request_CB(void)
 {
-    next_update_ms = millis() + 20;
-    baro_state = 0;
+  next_update_ms = millis() + 20;
 }
 
 void pressure_request_CB(void)
 {
-    next_update_ms = millis() + 20;
-    baro_state = 1;
+  next_update_ms = millis() + 20;
 }
 
 void pressure_read_CB(void)
 {
-    ms5611_up = (pressure_buffer[0] << 16) | (pressure_buffer[1] << 8) | pressure_buffer[2];
-    // start a temperature update
-    i2c_queue_job(WRITE,
-                  MS5611_ADDR,
-                  CMD_ADC_CONV + CMD_ADC_D2 + ms5611_osr,
-                  &temp_command,
-                  1,
-                  &temp_start_status,
-                  &temp_request_CB);
-    LED1_ON;
+  ms5611_up = (pressure_buffer[0] << 16) | (pressure_buffer[1] << 8) | pressure_buffer[2];
+  next_update_ms = millis();
 }
 
 static void temp_read_CB(void)
 {
-    ms5611_ut = (temp_buffer[0] << 16) | (temp_buffer[1] << 8) | temp_buffer[2];
+  ms5611_ut = (temp_buffer[0] << 16) | (temp_buffer[1] << 8) | temp_buffer[2];
+  next_update_ms = millis();
+}
 
+void ms5611_async_update(void)
+{
+  uint32_t now_ms = millis();
+
+  // if it's not time to do anything, just return
+  if (now_ms < next_update_ms)
+  {
+    return;
+  }
+
+  baro_last_update_watchdog_ms = now_ms;
+
+  switch (baro_state)
+  {
+  case 0:
     // start a pressure read
     i2c_queue_job(WRITE,
                   MS5611_ADDR,
@@ -379,53 +387,54 @@ static void temp_read_CB(void)
                   1,
                   &pressure_start_status,
                   &pressure_request_CB);
-    LED1_OFF;
+    baro_state++;
+    break;
+  case 1:
+    // Read the pressure
+    i2c_queue_job(READ,
+                  MS5611_ADDR,
+                  CMD_ADC_READ,
+                  pressure_buffer,
+                  3,
+                  &pressure_read_status,
+                  &pressure_read_CB);
+    baro_state++;
+    break;
+  case 2:
+    // start a temp read
+    i2c_queue_job(WRITE,
+                  MS5611_ADDR,
+                  CMD_ADC_CONV + CMD_ADC_D2 + ms5611_osr,
+                  &temp_command,
+                  1,
+                  &temp_start_status,
+                  &temp_request_CB);
+    baro_state++;
+    break;
+  case 3:
+    // Read the temperature
+    i2c_queue_job(READ,
+                  MS5611_ADDR,
+                  CMD_ADC_READ,
+                  temp_buffer,
+                  3,
+                  &temp_read_status,
+                  &temp_read_CB);
+    baro_state = 0;
+    break;
+  }
+
+  next_update_ms = millis() + 50;
+
+  ms5611_calculate();
 }
 
-void ms5611_async_update(void)
+bool ms5611_present()
 {
-    uint32_t now_ms = millis();
-
-    // if it's not time to do anything, just return
-    if ((int32_t)(now_ms - next_update_ms) < 0)
-    {
-        return;
-    }
-    else if(baro_state == 255)
-    {
-        // or, if we are waiting for an I2C job to finish
-        return;
-    }
-
-    if(baro_state == 1)
-    {
-        // Read The pressure started earlier
-        i2c_queue_job(READ,
-                      MS5611_ADDR,
-                      CMD_ADC_READ,
-                      pressure_buffer,
-                      3,
-                      &pressure_read_status,
-                      &pressure_read_CB);
-
-        // put into a waiting state until the I2C is done
-        baro_state = 255;
-    }
-    else if(baro_state == 0)
-    {
-        // Read the temperature started earlier
-        i2c_queue_job(READ,
-                      MS5611_ADDR,
-                      CMD_ADC_READ,
-                      temp_buffer,
-                      3,
-                      &temp_read_status,
-                      &temp_read_CB);
-
-        // put into a waiting state until the I2C is done
-        baro_state = 255;
-    }
-    ms5611_calculate();
+  if(ms5611_up != 0 || ms5611_ut != 0)
+    return true;
+  else
+    return false;
 }
 
 void ms5611_async_read(float* alt, float* press, float* temp)

@@ -68,7 +68,7 @@ static void calibrate()
     calibration_sum = 0.0f;
     calibrate_count = 0;
   }
-  else if  (calibrate_count >= 128  )
+  else if  (calibrate_count > 128  )
   {
     // Let the sensor settle for the first 128 measurements
     calibration_sum += raw_diff_pressure_Pa;
@@ -145,59 +145,68 @@ void ms4525_set_atm(uint32_t pressure_Pa)
 
 //=================================================
 // Asynchronus data storage
-static uint8_t buf[4];
+static uint8_t buf[4] = {0, 0, 0, 0};
 static volatile uint8_t read_status;
-static volatile int16_t velocity_data;
-static volatile int16_t temperature_data;
+static volatile int16_t raw_diff_pressure;
+static volatile int16_t raw_temp;
+static bool new_data = false;
 
 void ms4525_read_CB(void)
 {
-  int16_t data[2];
-  uint8_t status = (buf[0] >> 5); // first two bits are status bits
-  if(status == 0x00) // good data packet
-  {
-    data[0] = (int16_t)(((STATUS_MASK | buf[0]) << 8) | buf[1]);
-    data[1] = (int16_t)((buf[2] << 3) | (buf[3] >> 5));
-  }
-  else if(status == 0x02) // stale data packet
-  {
-    data[0] = (int16_t)(((STATUS_MASK | buf[0]) << 8) | buf[1]);
-    data[1] = (int16_t)((buf[2] << 3) | (buf[3] >> 5));
-  }
+  new_data = true;
+}
+
+bool ms4525_present(void)
+{
+  if (raw_diff_pressure != 0 || raw_temp != 0)
+    return true;
   else
+    return false;
+}
+
+int16_t ms4525_async_read(float *diff_press, float *temperature, float* vel)
+{
+  if (new_data)
   {
-    return;
+    uint8_t status = (buf[0] & 0xC0) >> 6;
+    if(status == 0x00) // good data packet
+    {
+      raw_diff_pressure = 0x3FFF & ((buf[0] << 8) + buf[1]);
+      raw_temp = ( 0xFFE0 & ((buf[2] << 8) + buf[3])) >> 5;
+
+      // Convert to Pa and K
+      raw_diff_pressure_Pa = -(((float)raw_diff_pressure - 1638.3f) / 6553.2f - 1.0f) * 6894.757;
+      temp = (0.097703957f * raw_temp)  + 223.0; // K
+
+      // Filter diff pressure measurement
+      float LPF_alpha = 0.1;
+      diff_pressure_abs_Pa = raw_diff_pressure_Pa - diff_pressure_offset;
+      diff_pressure_smooth_Pa = diff_pressure_abs_Pa - LPF_alpha * (diff_pressure_abs_Pa - diff_pressure_smooth_Pa);
+
+      velocity = sign(diff_pressure_smooth_Pa) * 24.574f/fastInvSqrt((absf(diff_pressure_smooth_Pa) * temp  /  atmospheric_pressure));
+    }
+    if(!calibrated)
+      calibrate();
   }
-  velocity_data = data[0];
-  temperature_data = data[1];
+  (*temperature) = temp;
+  (*diff_press) = diff_pressure_smooth_Pa;
+  (*vel) = velocity;
 }
-
-int16_t ms4525_read_velocity(void)
-{
-  return velocity_data;
-}
-
-
-int16_t ms4525_read_temperature(void)
-{
-  return temperature_data;
-}
-
 
 void ms4525_request_async_update(void)
 {
-  static uint64_t next_update_us = 0;
-  uint64_t now_us = micros();
+  static uint64_t next_update_ms = 0;
+  uint64_t now_ms = millis();
 
   // if it's not time to do anything, just return
-  if((int64_t)(now_us - next_update_us) < 0)
+  if((int64_t)(now_ms - next_update_ms) < 0)
   {
     return;
   }
   else
   {
     i2c_queue_job(READ, MS4525_ADDR, 0xFF, buf, 4, &read_status, &ms4525_read_CB);
-    next_update_us = now_us + 1000; // Response time is 1 ms (1000 microseconds)
+    next_update_ms = now_ms + 20; // Poll at 50 Hz
   }
   return;
 }

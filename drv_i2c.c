@@ -275,7 +275,10 @@ static void i2c_er_handler(void)
   volatile uint32_t SR1Register = I2Cx->SR1;
 
   if (SR1Register & 0x0F00)                                           // an error
+  {
+    i2cErrorCount++;
     error = true;
+  }
 
   // If AF, BERR or ARLO, abandon the current job and commence new if there are jobs
   if (SR1Register & 0x0700) {
