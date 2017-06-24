@@ -344,12 +344,12 @@ static uint32_t baro_last_update_watchdog_ms = 0;
 
 void temp_request_CB(void)
 {
-  next_update_ms = millis() + 20;
+  next_update_ms = millis() + 10;
 }
 
 void pressure_request_CB(void)
 {
-  next_update_ms = millis() + 20;
+  next_update_ms = millis() + 10;
 }
 
 void pressure_read_CB(void)

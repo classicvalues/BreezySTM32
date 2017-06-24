@@ -249,9 +249,9 @@ void hmc5883l_request_async_update()
   static uint64_t last_update_ms = 0;
   uint64_t now = millis();
 
-  if(now - last_update_ms > 15)
+  if(now - last_update_ms > 7)
   {
-    // 75 Hz update rate
+    // 100 Hz update rate
     i2c_queue_job(READ,
                   MAG_ADDRESS,
                   MAG_DATA_REGISTER,
