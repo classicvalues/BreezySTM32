@@ -210,7 +210,7 @@ static void ms5611_calibrate(float pre_adjust_altitude)
   calibration_counter++;
   if(calibration_counter == 256)
   {
-    offset = calibration_sum / 127.0;
+    offset = calibration_sum / 128.0;
     calibration_counter = 0;
     calibration_sum = 0.0f;
     calibrated = true;
