@@ -30,6 +30,7 @@ void ms4525_start_calibration();
 bool ms4525_calibrated();
 
 // Asynchronous I2C function
-void ms4525_request_async_update(void);
+void ms4525_async_update(void);
 int16_t ms4525_read_velocity(void);
 int16_t ms4525_read_temperature(void);
+void ms4525_present(void);

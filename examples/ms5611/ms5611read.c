@@ -40,8 +40,8 @@ void loop(void)
 
   float altitude, pressure, temperature;
   if (available) {
-    ms5611_read(&altitude, &pressure, &temperature);
-    ms5611_update();
+    ms5611_async_update();
+    ms5611_async_read(&altitude, &pressure, &temperature);
     printf("Pressure: %d.%d Pa\tTemperature: %d.%d deg C\tAltitude %d.%dm\n",
            (int32_t) pressure,
            (int32_t) (pressure*1000) % 1000,
