@@ -31,5 +31,5 @@ bool ms4525_calibrated();
 
 // Asynchronous I2C function
 bool ms4525_present(void);
-void ms4525_request_async_update(void);
-int16_t ms4525_async_read(float *diff_press, float *temperature, float* vel);
+void ms4525_async_update(void);
+void ms4525_async_read(float *diff_press, float *temperature, float* vel);

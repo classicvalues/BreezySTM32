@@ -63,7 +63,7 @@ static void calibrate()
   calibrate_count++ ;
   if (calibrate_count == 256 )
   {
-    diff_pressure_offset =  calibration_sum / 128.0f; //there has been 128 reading (256-128)
+    diff_pressure_offset =  calibration_sum / 127.0f; //there has been 128 reading (256-128)
     calibrated = true;
     calibration_sum = 0.0f;
     calibrate_count = 0;
@@ -150,10 +150,15 @@ static volatile uint8_t read_status;
 static volatile int16_t raw_diff_pressure;
 static volatile int16_t raw_temp;
 static bool new_data = false;
+static bool sensor_present = false;
 
 void ms4525_read_CB(void)
 {
-  new_data = true;
+  if (read_status != I2C_JOB_ERROR)
+  {
+    new_data = true;
+    sensor_present = true;
+  }
 }
 
 bool ms4525_present(void)
@@ -164,16 +169,15 @@ bool ms4525_present(void)
     return false;
 }
 
-int16_t ms4525_async_read(float *diff_press, float *temperature, float* vel)
+void ms4525_async_read(float* diff_press, float* temperature, float* vel)
 {
   if (new_data)
   {
     uint8_t status = (buf[0] & 0xC0) >> 6;
     if(status == 0x00) // good data packet
     {
-      raw_diff_pressure = 0x3FFF & ((buf[0] << 8) + buf[1]);
-      raw_temp = ( 0xFFE0 & ((buf[2] << 8) + buf[3])) >> 5;
-
+      int16_t raw_diff_pressure = 0x3FFF & ((buf[0] << 8) + buf[1]);
+      int16_t raw_temp = ( 0xFFE0 & ((buf[2] << 8) + buf[3])) >> 5;
       // Convert to Pa and K
       raw_diff_pressure_Pa = -(((float)raw_diff_pressure - 1638.3f) / 6553.2f - 1.0f) * 6894.757;
       temp = (0.097703957f * raw_temp)  + 223.0; // K
@@ -181,10 +185,16 @@ int16_t ms4525_async_read(float *diff_press, float *temperature, float* vel)
       // Filter diff pressure measurement
       float LPF_alpha = 0.1;
       diff_pressure_abs_Pa = raw_diff_pressure_Pa - diff_pressure_offset;
-      diff_pressure_smooth_Pa = diff_pressure_abs_Pa - LPF_alpha * (diff_pressure_abs_Pa - diff_pressure_smooth_Pa);
+      diff_pressure_smooth_Pa += LPF_alpha * (diff_pressure_abs_Pa - diff_pressure_smooth_Pa);
 
       velocity = sign(diff_pressure_smooth_Pa) * 24.574f/fastInvSqrt((absf(diff_pressure_smooth_Pa) * temp  /  atmospheric_pressure));
+
     }
+    else // stale data packet - ignore
+    {
+      return;
+    }
+
     if(!calibrated)
       calibrate();
   }
@@ -193,7 +203,8 @@ int16_t ms4525_async_read(float *diff_press, float *temperature, float* vel)
   (*vel) = velocity;
 }
 
-void ms4525_request_async_update(void)
+
+void ms4525_async_update(void)
 {
   static uint64_t next_update_ms = 0;
   uint64_t now_ms = millis();
