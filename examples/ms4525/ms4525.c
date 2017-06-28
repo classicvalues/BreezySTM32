@@ -47,19 +47,21 @@ void loop(void)
     delay(10);
 
 //    if (ms5611_present())
-//    {
+    {
 //      ms5611_async_read(&altitude, &pressure, &temperature);
 //      ms4525_set_atm((uint32_t) pressure);
-//    }
+    }
     if (ms4525_present())
     {
         float velocity, diff_pressure, temp;
         ms4525_async_read(&diff_pressure, &temp, &velocity);
-        printf("calibrated = %d\tvel: %d.%d m/s\tdiff_press: %d.%dPa\ttemp:%d.%dK\n",
-               ms4525_calibrated(),
+//        printf("calibrated = %d\tvel: %d.%d m/s\tdiff_press: %d.%dPa\ttemp:%d.%dK\n",
+        printf("%d.%d,\t%d.%d,\t%d.%d,\t%d.%d\n",
+//               ms4525_calibrated(),
                (int32_t)velocity, (int32_t)(fabs(velocity)*1000)%1000,
                (int32_t)diff_pressure, (int32_t)(fabs(diff_pressure)*1000)%1000,
-               (int32_t)temp, (int32_t)(temp*1000)%1000);
+               (int32_t)temp, (int32_t)(temp*1000)%1000,
+               (int32_t)pressure, (int32_t)(pressure*1000)%1000);
     }
     else
     {
