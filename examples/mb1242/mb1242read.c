@@ -34,14 +34,14 @@ void setup(void)
 
 void loop(void)
 {
+  mb1242_async_update();
+  delay(25);
+  LED1_TOGGLE;
   if(mb1242_present() || sonar_present)
   {
-        mb1242_async_update();
         float distance = mb1242_async_read();
         printf("distance = %d.%dm\n", (uint32_t)distance, (uint32_t)(distance*1000)%1000);
   }
   else
         printf("no sonar\n");
-  delay(25);
-  LED1_TOGGLE;
 }

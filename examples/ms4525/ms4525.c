@@ -33,13 +33,7 @@ void setup(void)
 
     airspeed_present = ms4525_init();
 
-    barometer_present = ms5611_init();
-
-    if(airspeed_present)
-        ms4525_update();
-
-    if(barometer_present)
-        ms5611_update();
+//    barometer_present = ms5611_init();
 }
 
 
@@ -47,18 +41,20 @@ void setup(void)
 float pressure, altitude, temperature;
 void loop(void)
 {
+//    ms5611_async_update();
+    ms4525_async_update();
 
-    if (barometer_present)
+    delay(10);
+
+//    if (ms5611_present())
+//    {
+//      ms5611_async_read(&altitude, &pressure, &temperature);
+//      ms4525_set_atm((uint32_t) pressure);
+//    }
+    if (ms4525_present())
     {
-      ms5611_update();
-      ms5611_read(&altitude, &pressure, &temperature);
-      ms4525_set_atm((uint32_t) pressure);
-    }
-    if (airspeed_present)
-    {
-        ms4525_update();
         float velocity, diff_pressure, temp;
-        ms4525_read(&diff_pressure, &temp, &velocity);
+        ms4525_async_read(&diff_pressure, &temp, &velocity);
         printf("calibrated = %d\tvel: %d.%d m/s\tdiff_press: %d.%dPa\ttemp:%d.%dK\n",
                ms4525_calibrated(),
                (int32_t)velocity, (int32_t)(fabs(velocity)*1000)%1000,
@@ -68,9 +64,6 @@ void loop(void)
     else
     {
         printf("no airspeed\n");
-        airspeed_present = ms4525_init();
-
     }
-    delay(10);
 }
 
