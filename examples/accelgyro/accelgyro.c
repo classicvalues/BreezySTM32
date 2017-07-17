@@ -26,8 +26,8 @@
 float accel_scale; // converts to units of m/s^2
 float gyro_scale; // converts to units of rad/s
 
-int16_t accel_data[3];
-int16_t gyro_data[3];
+volatile int16_t accel_data[3];
+volatile int16_t gyro_data[3];
 volatile int16_t temp_data;
 
 volatile uint8_t accel_status = 0;
@@ -35,22 +35,12 @@ volatile uint8_t gyro_status = 0;
 volatile uint8_t temp_status = 0;
 volatile bool mpu_new_measurement = false;
 
-void interruptCallback(void)
-{
-    mpu_new_measurement = true;
-
-    mpu6050_request_async_accel_read(accel_data, &accel_status);
-    mpu6050_request_async_gyro_read(gyro_data, &gyro_status);
-    mpu6050_request_async_temp_read(&temp_data, &temp_status);
-}
-
 uint32_t start_time = 0;
 
 void setup(void)
 {
     delay(500);
     i2cInit(I2CDEV_2);
-    mpu6050_register_interrupt_cb(&interruptCallback);
 
     uint16_t acc1G;
     mpu6050_init(true, &acc1G, &gyro_scale, BOARD_REV);
@@ -59,25 +49,23 @@ void setup(void)
 
 void loop(void)
 {
-    if (accel_status == I2C_JOB_COMPLETE
-        && gyro_status == I2C_JOB_COMPLETE
-        && temp_status == I2C_JOB_COMPLETE)
+//  printf("test");
+//  delay(100);
+    if (mpu6050_new_data())
     {
-        static int32_t count = 0;
-
-        // Throttle printing
-        if(count > 10000)
-        {
-            count = 0;
-            printf("%d\t %d\t %d\t %d\t %d\t %d\t %d\t \n",
-                   (int32_t)(accel_data[0]*accel_scale*1000.0f),
-                    (int32_t)(accel_data[1]*accel_scale*1000.0f),
-                    (int32_t)(accel_data[2]*accel_scale*1000.0f),
-                    (int32_t)(gyro_data[0]*gyro_scale*1000.0f),
-                    (int32_t)(gyro_data[1]*gyro_scale*1000.0f),
-                    (int32_t)(gyro_data[2]*gyro_scale*1000.0f),
-                    temp_data);
-        }
-        count++;
+        LED0_TOGGLE;
+        volatile uint64_t time_us;
+        mpu6050_async_read_all(accel_data, &temp_data, gyro_data, &time_us);
+        printf("%d\t %d\t %d\t %d\t %d\t %d\t %d\t %d\t \n",
+               (int32_t)(accel_data[0]*accel_scale*1000.0f),
+                (int32_t)(accel_data[1]*accel_scale*1000.0f),
+                (int32_t)(accel_data[2]*accel_scale*1000.0f),
+                (int32_t)(gyro_data[0]*gyro_scale*1000.0f),
+                (int32_t)(gyro_data[1]*gyro_scale*1000.0f),
+                (int32_t)(gyro_data[2]*gyro_scale*1000.0f),
+                (int32_t)temp_data,
+                (int32_t)time_us);
+//        printf("test");
+        delay(50);
     }
 }

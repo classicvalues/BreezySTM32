@@ -10,7 +10,7 @@
 BREEZY_DIR = ../../
 
 # Fill this out with source files for your specific project
-PROJECT_SRC = ms5611read.c
+PROJECT_SRC = sen13680read.c
 
 ###############################################################################
 
@@ -36,19 +36,22 @@ OBJECT_DIR	 = $(ROOT)/obj
 BIN_DIR		 = $(ROOT)/obj
 
 myproject_SRC = $(BREEZY_DIR)/main.c \
-		   $(BREEZY_DIR)/startup_stm32f10x_md_gcc.S \
-		   $(BREEZY_DIR)/drv_gpio.c \
-		   $(BREEZY_DIR)/drv_i2c.c \
-		   $(BREEZY_DIR)/drv_system.c \
-		   $(BREEZY_DIR)/drv_serial.c \
-		   $(BREEZY_DIR)/drv_uart.c \
-		   $(BREEZY_DIR)/drv_timer.c \
-		   $(BREEZY_DIR)/printf.c \
-           $(BREEZY_DIR)/drv_mpu6050.c \
-           $(BREEZY_DIR)/drv_ms5611.c \
-		   $(PROJECT_SRC) \
-		   $(CMSIS_SRC) \
-		   $(STDPERIPH_SRC)
+                $(BREEZY_DIR)/startup_stm32f10x_md_gcc.S \
+                $(BREEZY_DIR)/drv_gpio.c \
+                $(BREEZY_DIR)/drv_i2c.c \
+                $(BREEZY_DIR)/drv_mb1242.c \
+                $(BREEZY_DIR)/drv_sen13680.c \
+                $(BREEZY_DIR)/drv_adc.c \
+                $(BREEZY_DIR)/drv_spi.c \
+                $(BREEZY_DIR)/drv_pwm.c \
+                $(BREEZY_DIR)/drv_system.c \
+                $(BREEZY_DIR)/drv_serial.c \
+                $(BREEZY_DIR)/drv_uart.c \
+                $(BREEZY_DIR)/drv_timer.c \
+                $(BREEZY_DIR)/printf.c \
+                $(PROJECT_SRC) \
+                $(CMSIS_SRC) \
+                $(STDPERIPH_SRC)
 
 VPATH		:= $(SRC_DIR):$(SRC_DIR)/startups
 

@@ -1,5 +1,5 @@
 /*
-   drv_mb1242.h : driver for MaxBotix MB1242 sonar
+   drv_sen13680.h : driver for Sparkfun SEN13680 LIDAR-Lite v2
 
    Copyright (C) 2016 Simon D. Levy 
 
@@ -21,13 +21,7 @@
 
 #pragma once
 
-bool mb1242_init();
+bool sen13680_init();
 
-// Blocking Methods
-void mb1242_update();
-float mb1242_read();
-
-// Asynchronous Methods
-void mb1242_async_update();
-float mb1242_async_read();
-bool mb1242_present();
+void sen13680_update();
+float sen13680_read();

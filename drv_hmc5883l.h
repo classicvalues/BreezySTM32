@@ -30,4 +30,4 @@ void hmc5883l_read(int16_t *magData);
 
 // Asynchronous I2C method
 void hmc5883l_request_async_update();
-void hmc5883l_read_magnetometer(int16_t *magData);
+void hmc5883l_async_read(int16_t *magData);

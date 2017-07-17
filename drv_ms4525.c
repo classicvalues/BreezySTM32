@@ -35,16 +35,20 @@ inline static float absf(float x);
 uint32_t polling_interval_ms = 20; // (ms)
 uint32_t last_measurement_time_ms = 0;
 
-static int16_t raw_temp = 0;
-static int16_t raw_diff_pressure = 0;
-static int16_t diff_pressure_adc_0 = 0;
-static int16_t diff_pressure_smooth = 0;
-static float atmospheric_pressure = 101325.0; // For ground level, should use ms5611 to provide
-
-const float psi_to_Pa = 6894.757f;
+static float temp = 0.0f;
+static float raw_diff_pressure_Pa = 0.0f;
+static float velocity = 0.0f;
+static float diff_pressure_abs_Pa = 0.0f;
+static float diff_pressure_smooth_Pa = 0.0f;
+static float atmospheric_pressure = 101325.0f; // For ground level, should use ms5611 to provide
 
 static bool calibrated = true;
-static volatile int32_t diff_pressure_offset = 0;
+static volatile float diff_pressure_offset = 0.0f;
+
+static inline float sign(float x)
+{
+  return (x > 0) - (x < 0);
+}
 
 void ms4525_start_calibration()
 {
@@ -54,20 +58,20 @@ void ms4525_start_calibration()
 static void calibrate()
 {
   static uint16_t calibrate_count = 0;
-  static int32_t calibration_sum = 0;
+  static float calibration_sum = 0;
 
   calibrate_count++ ;
   if (calibrate_count == 256 )
   {
-    diff_pressure_offset =  (int32_t)(calibration_sum / 128); //there has been 128 reading (256-128)
+    diff_pressure_offset =  calibration_sum / 127.0f; //there has been 128 reading (256-128)
     calibrated = true;
-    calibration_sum = 0;
+    calibration_sum = 0.0f;
     calibrate_count = 0;
   }
-  else if  (calibrate_count >= 128  )
+  else if  (calibrate_count > 128  )
   {
     // Let the sensor settle for the first 128 measurements
-    calibration_sum += raw_diff_pressure ;
+    calibration_sum += raw_diff_pressure_Pa;
   }
 }
 
@@ -82,11 +86,7 @@ bool ms4525_init(void)
 {
   uint8_t buf[1];
   bool airspeed_present = false;
-  for(uint8_t i = 0; i < 5; i++)
-  {
-    airspeed_present |= i2cRead(MS4525_ADDR, 0xFF, 1, buf);
-    delay(polling_interval_ms);
-  }
+  airspeed_present |= i2cRead(MS4525_ADDR, 0xFF, 1, buf);
   calibrated = false;
   return airspeed_present;
 }
@@ -102,118 +102,128 @@ void ms4525_update()
     last_measurement_time_ms = now_ms;
     i2cRead(MS4525_ADDR, 0xFF, 4, buf);
 
-    uint8_t status = (buf[0] >> 5); // first two bits are status bits
+    uint8_t status = (buf[0] & 0xC0) >> 6;
     if(status == 0x00) // good data packet
     {
-      raw_temp = (buf[2] << 8) + buf[3];
-      raw_temp = (0xFFe0 & raw_temp) >> 5;
+      int16_t raw_diff_pressure = 0x3FFF & ((buf[0] << 8) + buf[1]);
+      int16_t raw_temp = ( 0xFFE0 & ((buf[2] << 8) + buf[3])) >> 5;
 
-      raw_diff_pressure =  ( ( (buf[0] << 8) + buf[1] ) & 0x3FFF) - 0x2000;
+      // Convert to Pa and K
+      raw_diff_pressure_Pa = -(((float)raw_diff_pressure - 1638.3f) / 6553.2f - 1.0f) * 6894.757;
+      temp = (0.097703957f * raw_temp)  + 223.0; // K
 
-      if(!calibrated)
-        calibrate();
+      // Filter diff pressure measurement
+      float LPF_alpha = 0.1;
+      diff_pressure_abs_Pa = raw_diff_pressure_Pa - diff_pressure_offset;
+      diff_pressure_smooth_Pa += LPF_alpha * (diff_pressure_abs_Pa - diff_pressure_smooth_Pa);
+
+      velocity = sign(diff_pressure_smooth_Pa) * 24.574f/fastInvSqrt((absf(diff_pressure_smooth_Pa) * temp  /  atmospheric_pressure));
+
     }
     else // stale data packet - ignore
     {
       return;
     }
+
+    if(!calibrated)
+      calibrate();
   }
-  else
-  {
-    return;
-  }
+
 }
 
-void ms4525_read(float *differential_pressure, float *temp, float* velocity)
+void ms4525_read(float *diff_press, float *temperature, float* vel)
 {
-  // First, calculate temperature
-  (*temp) = (0.097703957f * raw_temp)  + 223.0; // K
+  (*temperature) = temp;
+  (*diff_press) = diff_pressure_smooth_Pa;
+  (*vel) = velocity;
+}
 
-
-  // Then, Calculate the differential pressure
-  diff_pressure_adc_0 = raw_diff_pressure - diff_pressure_offset ;
-  /// TODO: FILTER THE DIFF PRESSURE (USE LPF)
-  int abs_diff_pressure_adc =  abs(diff_pressure_adc_0 - diff_pressure_smooth);
-  float smoothing_scale = 0;
-  if (abs_diff_pressure_adc <= FILTERING4525_ADC_MIN_AT)
-  {
-    smoothing_scale = FILTERING4525_ADC_MIN ;
-  }
-  else if (abs_diff_pressure_adc >= FILTERING4525_ADC_MAX_AT)
-  {
-    smoothing_scale = FILTERING4525_ADC_MAX ;
-  }
-  else
-  {
-    smoothing_scale = FILTERING4525_ADC_MIN + ( FILTERING4525_ADC_MAX - FILTERING4525_ADC_MIN) * (abs_diff_pressure_adc - FILTERING4525_ADC_MIN_AT) / (FILTERING4525_ADC_MAX_AT - FILTERING4525_ADC_MIN_AT) ;
-  }
-  diff_pressure_smooth += smoothing_scale * ( diff_pressure_adc_0 - diff_pressure_smooth );
-  (*differential_pressure) = diff_pressure_smooth;
-
-  // Finally, calculate the airspeed
-  // in m/s, relies on accurate reading of atmospheric pressure, so we might want to use the barometer to supply good values for that
-  (*velocity) =  24.574 * 1.0/fastInvSqrt((absf(diff_pressure_smooth) * (*temp)  /  atmospheric_pressure));
+void ms4525_set_atm(uint32_t pressure_Pa)
+{
+  atmospheric_pressure = pressure_Pa;
 }
 
 //=================================================
 // Asynchronus data storage
-static uint8_t buf[4];
+static uint8_t buf[4] = {0, 0, 0, 0};
 static volatile uint8_t read_status;
-static volatile int16_t velocity_data;
-static volatile int16_t temperature_data;
+static volatile int16_t raw_diff_pressure;
+static volatile int16_t raw_temp;
+static bool new_data = false;
+static bool sensor_present = false;
 
 void ms4525_read_CB(void)
 {
-  int16_t data[2];
-  uint8_t status = (buf[0] >> 5); // first two bits are status bits
-  if(status == 0x00) // good data packet
+  if (read_status != I2C_JOB_ERROR)
   {
-    data[0] = (int16_t)(((STATUS_MASK | buf[0]) << 8) | buf[1]);
-    data[1] = (int16_t)((buf[2] << 3) | (buf[3] >> 5));
+    new_data = true;
+    sensor_present = true;
   }
-  else if(status == 0x02) // stale data packet
-  {
-    data[0] = (int16_t)(((STATUS_MASK | buf[0]) << 8) | buf[1]);
-    data[1] = (int16_t)((buf[2] << 3) | (buf[3] >> 5));
-  }
+}
+
+bool ms4525_present(void)
+{
+  if (raw_diff_pressure != 0 || raw_temp != 0)
+    return true;
   else
+    return false;
+}
+
+void ms4525_async_read(float* diff_press, float* temperature, float* vel)
+{
+  if (new_data)
   {
-    return;
+    uint8_t status = (buf[0] & 0xC0) >> 6;
+    if(status == 0x00) // good data packet
+    {
+      int16_t raw_diff_pressure = 0x3FFF & ((buf[0] << 8) + buf[1]);
+      int16_t raw_temp = ( 0xFFE0 & ((buf[2] << 8) + buf[3])) >> 5;
+      // Convert to Pa and K
+      raw_diff_pressure_Pa = -(((float)raw_diff_pressure - 1638.3f) / 6553.2f - 1.0f) * 6894.757;
+      temp = (0.097703957f * raw_temp)  + 223.0; // K
+
+      // Filter diff pressure measurement
+      float LPF_alpha = 0.1;
+      diff_pressure_abs_Pa = raw_diff_pressure_Pa - diff_pressure_offset;
+      diff_pressure_smooth_Pa += LPF_alpha * (diff_pressure_abs_Pa - diff_pressure_smooth_Pa);
+
+      velocity = sign(diff_pressure_smooth_Pa) * 24.574f/fastInvSqrt((absf(diff_pressure_smooth_Pa) * temp  /  atmospheric_pressure));
+
+    }
+    else // stale data packet - ignore
+    {
+      return;
+    }
+
+    if(!calibrated)
+      calibrate();
   }
-  velocity_data = data[0];
-  temperature_data = data[1];
-}
-
-int16_t ms4525_read_velocity(void)
-{
-  return velocity_data;
+  (*temperature) = temp;
+  (*diff_press) = diff_pressure_smooth_Pa;
+  (*vel) = velocity;
 }
 
 
-int16_t ms4525_read_temperature(void)
+void ms4525_async_update(void)
 {
-  return temperature_data;
-}
-
-
-void ms4525_request_async_update(void)
-{
-  static uint64_t next_update_us = 0;
-  uint64_t now_us = micros();
+  static uint64_t next_update_ms = 0;
+  uint64_t now_ms = millis();
 
   // if it's not time to do anything, just return
-  if((int64_t)(now_us - next_update_us) < 0)
+  if((int64_t)(now_ms - next_update_ms) < 0)
   {
     return;
   }
   else
   {
     i2c_queue_job(READ, MS4525_ADDR, 0xFF, buf, 4, &read_status, &ms4525_read_CB);
-    next_update_us = now_us + 1000; // Response time is 1 ms (1000 microseconds)
+    next_update_ms = now_ms + 20; // Poll at 50 Hz
   }
   return;
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstrict-aliasing"
 
 static float fastInvSqrt(float x)
 {
@@ -226,11 +236,12 @@ static float fastInvSqrt(float x)
   i  = * (long *) &y;                         // evil floating point bit level hacking
   i  = 0x5f3759df - (i >> 1);
   y  = * (float *) &i;
-  y  = y * (threehalfs - (x2 * y * y));       // 1st iteration
-  y  = y * (threehalfs - (x2 * y * y));       // 2nd iteration, this can be removed
+  y  = y * (threehalfs - (x2 * y * y));
 
   return y;
 }
+
+#pragma GCC diagnostic pop
 
 inline static float absf(float x)
 {

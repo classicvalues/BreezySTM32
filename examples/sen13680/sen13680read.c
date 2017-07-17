@@ -1,9 +1,9 @@
 /*
-   mb1242read.c : read values from MaxBotix MB1242 I^2C sonar
+   sen13680read.c : read values from Sparkfun SEN13680 LIDAR-Lite v2 I^2C lidar
 
    Don't forget to supply external power to the board!
 
-   Copyright (C) 2016 Simon D. Levy 
+   Copyright (C) 2016 Simon D. Levy
 
    This file is part of BreezySTM32.
 
@@ -23,25 +23,29 @@
 
 #include <breezystm32.h>
 
-static bool sonar_present;
+static bool lidar_present;
 
+// initialize i2c
 void setup(void)
 {
-    i2cInit(I2CDEV_2);
-    delay(500);
-    sonar_present = mb1242_init();
+  i2cInit(I2CDEV_2);
+  i2cWrite(0, 0, 0);
 }
 
+// look for the lidar and then read measurements
 void loop(void)
 {
-  mb1242_async_update();
-  delay(25);
-  LED1_TOGGLE;
-  if(mb1242_present() || sonar_present)
+  if(lidar_present)
   {
-        float distance = mb1242_async_read();
-        printf("distance = %d.%dm\n", (uint32_t)distance, (uint32_t)(distance*1000)%1000);
+    sen13680_update();
+    float distance = sen13680_read();
+    printf("distance = %d.%dm\n", (uint32_t)distance, (uint32_t)(distance*1000)%1000);
   }
   else
-        printf("no sonar\n");
+  {
+    printf("No lidar present. Reinitializing.\n");
+    lidar_present = sen13680_init();
+  }
+  delay(100);
+  LED1_TOGGLE;
 }

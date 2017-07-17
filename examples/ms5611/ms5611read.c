@@ -37,13 +37,18 @@ void setup(void)
 
 void loop(void)
 {
-  int32_t baro;
-  int32_t temp;
+
+  float altitude, pressure, temperature;
   if (available) {
-    baro = ms5611_read_pressure();
-    temp = ms5611_read_temperature();
-    ms5611_update();
-    printf("Pressure: %d Pa    \t Temperature: %d.%d deg C\n", baro, temp/100, temp%100);
+    ms5611_async_update();
+    ms5611_async_read(&altitude, &pressure, &temperature);
+    printf("Pressure: %d.%d Pa\tTemperature: %d.%d deg C\tAltitude %d.%dm\n",
+           (int32_t) pressure,
+           (int32_t) (pressure*1000) % 1000,
+           (int32_t) temperature,
+           (int32_t) (temperature*1000) % 1000,
+           (int32_t) altitude,
+           (int32_t) (altitude*1000) % 1000);
   }
   else
     printf("MS5611 unavailable\n");

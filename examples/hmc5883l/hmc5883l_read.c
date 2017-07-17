@@ -40,7 +40,7 @@ void setup(void)
 void loop(void)
 {
   hmc5883l_request_async_update();
-  hmc5883l_read_magnetometer(mag_data);
+  hmc5883l_async_read(mag_data);
   printf("%d\t %d\t %d\n",
          (int32_t)(mag_data[0]),
          (int32_t)(mag_data[1]),

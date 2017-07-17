@@ -16,10 +16,12 @@
    You should have received a copy of the GNU General Public License
    along with BreezySTM32.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <stdint.h>
 
 #pragma once
 
 bool ms4525_init(void);
+void ms4525_set_atm(uint32_t pressure_Pa);
 
 // Blocking I2C function
 void ms4525_update();
@@ -28,6 +30,6 @@ void ms4525_start_calibration();
 bool ms4525_calibrated();
 
 // Asynchronous I2C function
-void ms4525_request_async_update(void);
-int16_t ms4525_read_velocity(void);
-int16_t ms4525_read_temperature(void);
+bool ms4525_present(void);
+void ms4525_async_update(void);
+void ms4525_async_read(float *diff_press, float *temperature, float* vel);

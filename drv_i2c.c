@@ -275,7 +275,10 @@ static void i2c_er_handler(void)
   volatile uint32_t SR1Register = I2Cx->SR1;
 
   if (SR1Register & 0x0F00)                                           // an error
+  {
+    i2cErrorCount++;
     error = true;
+  }
 
   // If AF, BERR or ARLO, abandon the current job and commence new if there are jobs
   if (SR1Register & 0x0700) {
@@ -300,7 +303,7 @@ static void i2c_er_handler(void)
     }
   }
   I2Cx->SR1 &= ~0x0F00;                                               // reset all the error bits to clear the interrupt
-  if (status != NULL)
+  if (status)
     (*status) = I2C_JOB_ERROR;                                      // Update job status
   if (complete_CB != NULL)
       complete_CB();
@@ -413,7 +416,7 @@ void i2c_ev_handler(void)
     if (final_stop) {                                               // If there is a final stop and no more jobs, bus is inactive, disable interrupts to prevent BTF
       I2C_ITConfig(I2Cx, I2C_IT_EVT | I2C_IT_ERR, DISABLE);       // Disable EVT and ERR interrupts while bus inactive
     }
-    if (status != NULL){
+    if (status){
       (*status) = I2C_JOB_COMPLETE;                               // Update status
     }
     if (complete_CB != NULL){
@@ -455,14 +458,16 @@ void i2cInit(I2CDevice index)
 
   // I2C ER Interrupt
   nvic.NVIC_IRQChannel = i2cHardwareMap[index].er_irq;
-  nvic.NVIC_IRQChannelPreemptionPriority = 0;
-  nvic.NVIC_IRQChannelSubPriority = 0;
+  // Set the priority to just below the systick interrupt
+  nvic.NVIC_IRQChannelPreemptionPriority = 2;
+  nvic.NVIC_IRQChannelSubPriority = 1;
   nvic.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&nvic);
 
   // I2C EV Interrupt
   nvic.NVIC_IRQChannel = i2cHardwareMap[index].ev_irq;
-  nvic.NVIC_IRQChannelPreemptionPriority = 0;
+  // Set the priority to just below the systick interrupt
+  nvic.NVIC_IRQChannelPreemptionPriority = 1;
   NVIC_Init(&nvic);
 
   // Initialize buffer
@@ -526,6 +531,8 @@ static void i2cUnstick(void)
   cfg.speed = Speed_2MHz;
   cfg.mode = Mode_AF_OD;
   gpioInit(gpio, &cfg);
+
+  // clear the buffer
 }
 
 void i2c_job_handler()
@@ -548,7 +555,8 @@ void i2c_job_handler()
   i2cJob_t* job = i2c_buffer + i2c_buffer_tail;
 
   // First, change status to BUSY
-  (*job->status) = I2C_JOB_BUSY;
+  if (job->status)
+    (*job->status) = I2C_JOB_BUSY;
 
   // perform the appropriate job
   if(job->type == READ)
@@ -594,7 +602,8 @@ void i2c_queue_job(i2cJobType_t type, uint8_t addr_, uint8_t reg_, uint8_t *data
   job->CB = CB;
 
   // change job status
-  (*job->status) = I2C_JOB_QUEUED;
+  if (job->status)
+    (*job->status) = I2C_JOB_QUEUED;
 
   // Increment the buffer size
   i2c_buffer_count++;

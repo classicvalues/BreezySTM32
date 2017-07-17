@@ -58,14 +58,14 @@
  *             GN2 |  GN1 |  GN0 |   Mag Input   | Gain       | Output Range
  *                 |      |      |  Range[Ga]    | [LSB/mGa]  |
  *            ------------------------------------------------------
- *              0  |  0   |  0   |  ±0.88Ga      |   1370     | 0xF800?0x07FF (-2048:2047)
- *              0  |  0   |  1   |  ±1.3Ga (def) |   1090     | 0xF800?0x07FF (-2048:2047)
- *              0  |  1   |  0   |  ±1.9Ga       |   820      | 0xF800?0x07FF (-2048:2047)
- *              0  |  1   |  1   |  ±2.5Ga       |   660      | 0xF800?0x07FF (-2048:2047)
- *              1  |  0   |  0   |  ±4.0Ga       |   440      | 0xF800?0x07FF (-2048:2047)
- *              1  |  0   |  1   |  ±4.7Ga       |   390      | 0xF800?0x07FF (-2048:2047)
- *              1  |  1   |  0   |  ±5.6Ga       |   330      | 0xF800?0x07FF (-2048:2047)
- *              1  |  1   |  1   |  ±8.1Ga       |   230      | 0xF800?0x07FF (-2048:2047)
+ *              0  |  0   |  0   |  ï¿½0.88Ga      |   1370     | 0xF800?0x07FF (-2048:2047)
+ *              0  |  0   |  1   |  ï¿½1.3Ga (def) |   1090     | 0xF800?0x07FF (-2048:2047)
+ *              0  |  1   |  0   |  ï¿½1.9Ga       |   820      | 0xF800?0x07FF (-2048:2047)
+ *              0  |  1   |  1   |  ï¿½2.5Ga       |   660      | 0xF800?0x07FF (-2048:2047)
+ *              1  |  0   |  0   |  ï¿½4.0Ga       |   440      | 0xF800?0x07FF (-2048:2047)
+ *              1  |  0   |  1   |  ï¿½4.7Ga       |   390      | 0xF800?0x07FF (-2048:2047)
+ *              1  |  1   |  0   |  ï¿½5.6Ga       |   330      | 0xF800?0x07FF (-2048:2047)
+ *              1  |  1   |  1   |  ï¿½8.1Ga       |   230      | 0xF800?0x07FF (-2048:2047)
  *                               |Not recommended|
  *
  * 4:0 CRB4-CRB: 0 This bit must be cleared for correct operation.
@@ -140,17 +140,15 @@ bool hmc5883lInit(int boardVersion)
     gpioInit(GPIOC, &gpio);
   }
 
-  delay(50);
   i2cWrite(MAG_ADDRESS, HMC58X3_R_CONFA, 0x010 + HMC_POS_BIAS);   // Reg A DOR = 0x010 + MS1, MS0 set to pos bias
   // Note that the  very first measurement after a gain change maintains the same gain as the previous setting.
   // The new gain setting is effective from the second measurement and on.
   i2cWrite(MAG_ADDRESS, HMC58X3_R_CONFB, 0x60); // Set the Gain to 2.5Ga (7:5->011)
-  delay(100);
   hmc5883l_read(magADC);
 
-  for (i = 0; i < 10; i++) {  // Collect 10 samples
+  for (i = 0; i < 5; i++) {  // Collect 5 samples
     i2cWrite(MAG_ADDRESS, HMC58X3_R_MODE, 1);
-    delay(50);
+    delay(10);
     hmc5883l_read(magADC);       // Get the raw values in case the scales have already been changed.
 
     // Since the measurements are noisy, they should be averaged rather than taking the max.
@@ -167,9 +165,9 @@ bool hmc5883lInit(int boardVersion)
 
   // Apply the negative bias. (Same gain)
   i2cWrite(MAG_ADDRESS, HMC58X3_R_CONFA, 0x010 + HMC_NEG_BIAS);   // Reg A DOR = 0x010 + MS1, MS0 set to negative bias.
-  for (i = 0; i < 10; i++) {
+  for (i = 0; i < 5; i++) {
     i2cWrite(MAG_ADDRESS, HMC58X3_R_MODE, 1);
-    delay(50);
+    delay(10);
     hmc5883l_read(magADC);               // Get the raw values in case the scales have already been changed.
 
     // Since the measurements are noisy, they should be averaged.
@@ -184,15 +182,14 @@ bool hmc5883lInit(int boardVersion)
     }
   }
 
-  magGain[X] = fabsf(660.0f * HMC58X3_X_SELF_TEST_GAUSS * 2.0f * 10.0f / xyz_total[X]);
-  magGain[Y] = fabsf(660.0f * HMC58X3_Y_SELF_TEST_GAUSS * 2.0f * 10.0f / xyz_total[Y]);
-  magGain[Z] = fabsf(660.0f * HMC58X3_Z_SELF_TEST_GAUSS * 2.0f * 10.0f / xyz_total[Z]);
+  magGain[X] = fabsf(660.0f * HMC58X3_X_SELF_TEST_GAUSS * 2.0f * 5.0f / xyz_total[X]);
+  magGain[Y] = fabsf(660.0f * HMC58X3_Y_SELF_TEST_GAUSS * 2.0f * 5.0f / xyz_total[Y]);
+  magGain[Z] = fabsf(660.0f * HMC58X3_Z_SELF_TEST_GAUSS * 2.0f * 5.0f / xyz_total[Z]);
 
   // leave test mode
   i2cWrite(MAG_ADDRESS, HMC58X3_R_CONFA, 0x70);   // Configuration Register A  -- 0 11 100 00  num samples: 8 ; output rate: 15Hz ; normal measurement mode
   i2cWrite(MAG_ADDRESS, HMC58X3_R_CONFB, 0x20);   // Configuration Register B  -- 001 00000    configuration gain 1.3Ga
   i2cWrite(MAG_ADDRESS, HMC58X3_R_MODE, 0x00);    // Mode register             -- 000000 00    continuous Conversion Mode
-  delay(100);
 
   if (!bret) {                // Something went wrong so get a best guess
     magGain[X] = 1.0f;
@@ -249,12 +246,12 @@ void mag_read_CB(void)
 
 void hmc5883l_request_async_update()
 {
-  static uint64_t last_update_us = 0;
-  uint64_t now = micros();
+  static uint64_t last_update_ms = 0;
+  uint64_t now = millis();
 
-  if(now - last_update_us > 6250)
+  if(now - last_update_ms > 7)
   {
-    // 160 Hz update rate (datasheet)
+    // 100 Hz update rate
     i2c_queue_job(READ,
                   MAG_ADDRESS,
                   MAG_DATA_REGISTER,
@@ -263,12 +260,12 @@ void hmc5883l_request_async_update()
                   &status,
                   &mag_read_CB);
 
-    last_update_us = now;
+    last_update_ms = now;
   }
   return;
 }
 
-void hmc5883l_read_magnetometer(int16_t *magData)
+void hmc5883l_async_read(int16_t *magData)
 {
   magData[0] = mag_data[X];
   magData[1] = mag_data[Y];

@@ -37,72 +37,118 @@ static uint64_t last_update_time_us;
 static int32_t distance_cm;
 
 
-static void adjust_reading(void) {
-
-    distance_cm = 1.071 * distance_cm + 3.103; // emprically determined
-}
-
-
 bool mb1242_init()
 {
-
-    // The only way to know if a sonar is attached is to try to get a reading (doesn't always ACK on i2c)
-    int count = 0;
-    bool sonar_present = false;
-    mb1242_update();
-    while(!sonar_present && count < 5)
-    {
-        delay(200);    // You have to wait 200 ms for the sensor to read
-        mb1242_update();
-        sonar_present |= distance_cm > 0;
-        count++;
-    }
-    return sonar_present; // if you have a measurement, return true, otherwise, there was no sonar attached
+  return i2cWrite(MB1242_DEFAULT_ADDRESS, 0xFF, start_measurement_command);
 }
 
 
 void start_sonar_measurement_CB(void)
 {
-    // indicate a completed started measurement
-    state = 1;
-}
-
-
-void read_sonar_measurement_CB(void)
-{
-    // switch data into appropriate units
-    distance_cm = (read_buffer[0] << 8) + read_buffer[1];
-    adjust_reading();
-    state = 0;
+  // indicate a completed started measurement
+  state = 1;
 }
 
 
 void mb1242_update()
 {
-    uint64_t now_us = micros();
-    if (now_us > last_update_time_us + 25000)
+  uint64_t now_us = micros();
+  if (now_us > last_update_time_us + 25000)
+  {
+    last_update_time_us = now_us;
+    if (state == 0)
     {
-      last_update_time_us = now_us;
-        if (state == 0)
-        {
-            // Start a sonar measurement,
-            i2cWrite(MB1242_DEFAULT_ADDRESS, 0xFF, start_measurement_command);
-            state = 1;
-        }
-        else if (state == 1) {
-            read_buffer[0] = 0;
-            read_buffer[1] = 0;
-            // Read the sonar measurement
-            i2cRead(MB1242_DEFAULT_ADDRESS, 0xFF, 2, read_buffer);
-
-            // convert to cm
-            distance_cm = (read_buffer[0] << 8) + read_buffer[1];
-            state = 0;
-        }
+      // Start a sonar measurement,
+      i2cWrite(MB1242_DEFAULT_ADDRESS, 0xFF, start_measurement_command);
+      state = 1;
     }
+    else if (state == 1) {
+      read_buffer[0] = 0;
+      read_buffer[1] = 0;
+      // Read the sonar measurement
+      i2cRead(MB1242_DEFAULT_ADDRESS, 0xFF, 2, read_buffer);
+
+      // convert to cm
+      distance_cm = (read_buffer[0] << 8) + read_buffer[1];
+      if (distance_cm > 850)
+      {
+          distance_cm = 0;
+      }
+      state = 0;
+    }
+  }
 }
 
 float mb1242_read()
 {
-    return (1.071 * (float)distance_cm + 3.103)/100.0; // emprically determined
+  return (1.071 * (float)distance_cm + 3.103)/100.0; // emprically determined
 }
+
+
+//=============================================
+// Asynchronus data storage
+static uint8_t buf[2];
+static volatile uint8_t read_status;
+static float distance;
+static bool new_data = false;
+static bool sensor_present = false;
+
+void mb1242_start_read_CB(void)
+{
+  if (read_status != I2C_JOB_ERROR)
+  {
+    sensor_present = true;
+  }
+}
+
+void mb1242_read_CB(void)
+{
+  if (read_status != I2C_JOB_ERROR)
+  {
+    sensor_present = true;
+    new_data = true;
+  }
+}
+
+
+void mb1242_async_update()
+{
+  uint64_t now_ms = millis();
+  if (now_ms > last_update_time_us + 25) // 40 Hz update rate
+  {
+    last_update_time_us = now_ms;
+    if (state == 0)
+    {
+      // Start a sonar measurement,
+      i2c_queue_job(WRITE, MB1242_DEFAULT_ADDRESS, 0xFF, &start_measurement_command, 1,
+                    &read_status, &mb1242_start_read_CB);
+      state = 1;
+    }
+    else if (state == 1) {
+      // Read the sonar measurement
+      i2c_queue_job(READ, MB1242_DEFAULT_ADDRESS, 0xFF, buf, 2, &read_status, &mb1242_read_CB);
+      state = 0;
+    }
+  }
+}
+
+float mb1242_async_read()
+{
+  if (new_data)
+  {
+    // convert to cm
+    distance_cm = (buf[0] << 8) + buf[1];
+    if (distance_cm > 850)
+    {
+        distance_cm = 0;
+    }
+    distance = (1.071 * (float)distance_cm + 3.103)/100.0; // emprically determined
+  }
+  return distance;
+}
+
+bool mb1242_present()
+{
+  return sensor_present;
+}
+

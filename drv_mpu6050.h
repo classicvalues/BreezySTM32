@@ -28,6 +28,8 @@ void mpu6050_init(bool enableInterrupt, uint16_t * acc1G, float * gyroScale, int
 void mpu6050_register_interrupt_cb(void (*functionPtr)(void));
 
 // Blocking Read Functions
+bool mpu6050_new_data();
+void mpu6050_read_all(int16_t *accData, int16_t *gyroData, int16_t* tempData, uint64_t* time_us);
 void mpu6050_read_accel(int16_t *accData);
 void mpu6050_read_gyro(int16_t *gyroData);
 void mpu6050_read_temperature(int16_t * tempData);
@@ -36,3 +38,4 @@ void mpu6050_read_temperature(int16_t * tempData);
 void mpu6050_request_async_accel_read(int16_t *accData, volatile uint8_t *status_);
 void mpu6050_request_async_gyro_read(int16_t *gyroData, volatile uint8_t *status_);
 void mpu6050_request_async_temp_read(volatile int16_t *tempData, volatile uint8_t *status_);
+void mpu6050_async_read_all(volatile int16_t *accData, volatile int16_t *tempData, volatile int16_t *gyroData, volatile uint64_t *timeData);

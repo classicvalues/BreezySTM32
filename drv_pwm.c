@@ -69,6 +69,9 @@ static uint16_t        captures[MAX_INPUTS];
 static uint16_t        sonar_reads[MAX_INPUTS];
 static pwmWriteFuncPtr pwmWritePtr = NULL;
 static uint8_t         pwmFilter = 0;
+static uint32_t        pwmLastUpdateTime_ms = 0;
+static bool            new_data = false;
+static bool            sonar_present = false;
 
 #define PWM_TIMER_MHZ 1
 #define PWM_TIMER_8_MHZ 8
@@ -180,8 +183,16 @@ static pwmPortData_t *pwmInConfig(uint8_t port, timerCCCallbackPtr callback, uin
     return p;
 }
 
+uint32_t pwmLastUpdate()
+{
+    return pwmLastUpdateTime_ms;
+}
+
 static void ppmCallback(uint8_t port, uint16_t capture)
 {
+    pwmLastUpdateTime_ms = millis();
+    new_data = true;
+
     (void)port;
     uint16_t diff;
     static uint16_t now;
@@ -204,6 +215,9 @@ static void ppmCallback(uint8_t port, uint16_t capture)
 
 static void pwmCallback(uint8_t port, uint16_t capture)
 {
+    pwmLastUpdateTime_ms = millis();
+    new_data = true;
+
     if (pwmPorts[port].state == 0) {
         pwmPorts[port].rise = capture;
         pwmPorts[port].state = 1;
@@ -234,6 +248,7 @@ static void sonarCallback(uint8_t port, uint16_t capture)
       pwmPorts[port].capture = pwmPorts[port].fall - pwmPorts[port].rise;
 //      if (pwmPorts[port].capture > 880 && pwmPorts[port].capture < 65000) { // valid pulse width
           sonar_reads[pwmPorts[port].channel - 8] = pwmPorts[port].capture;
+          sonar_present = true;
 //      }
       // switch state
       pwmPorts[port].state = 0;
@@ -297,9 +312,8 @@ static const uint16_t multiPPMSONAR[] = {
     PWM10 | TYPE_M,
     PWM11 | TYPE_M,
     PWM12 | TYPE_M,
-    TYPE_GPIO_OUTPUT | PWM13 | TYPE_S,
+    PWM13 | TYPE_M,
     PWM14 | TYPE_M,
-
     0xFFF
 };
 
@@ -322,7 +336,7 @@ static const uint16_t multiPWM[] = {
 };
 
 
-static         pwmPortData_t *motors[4];
+static pwmPortData_t *motors[MAX_PORTS];
 static uint8_t numMotors = 0;
 static uint8_t numInputs = 0;
 
@@ -343,6 +357,7 @@ void pwmInit(bool useCPPM, bool usePwmFilter, bool fastPWM, uint32_t motorPwmRat
     // pwm filtering on input
     pwmFilter = usePwmFilter ? 1 : 0;
 
+    numMotors = 0;
     setup = useCPPM ? multiPPMSONAR : multiPWM;
 
     int i;
@@ -393,18 +408,29 @@ void pwmWriteMotor(uint8_t index, uint16_t value)
 
 uint16_t pwmRead(uint8_t channel)
 {
-    return captures[channel];
+    if(millis() > pwmLastUpdateTime_ms + 40)
+    {
+      return 0;
+    }
+    else
+    {
+      new_data = false;
+      return captures[channel];
+    }
 }
 
-void startSonar()
+bool pwmNewData()
 {
-  digitalHi(timerHardware[sonar_trigger_port].gpio, timerHardware[sonar_trigger_port].pin);
-  delayMicroseconds(50);
-  digitalLo(timerHardware[sonar_trigger_port].gpio, timerHardware[sonar_trigger_port].pin);
+    return new_data;
 }
 
 float sonarRead(uint8_t channel)
 {
     return (float)sonar_reads[channel] / 5787.405;
+}
+
+bool sonarPresent()
+{
+  return sonar_present;
 }
 

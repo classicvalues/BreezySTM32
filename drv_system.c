@@ -55,7 +55,7 @@ uint64_t micros(void)
         ms = sysTickUptime;
         cycle_cnt = SysTick->VAL;
     } while (ms != sysTickUptime);
-  return (uint64_t)ms * (uint64_t)1000 + (uint64_t)((usTicks * 1000 - cycle_cnt) / usTicks);
+    return ms * 1000 + 1000 - cycle_cnt / usTicks;
 }
 
 // Return system uptime in milliseconds (rollover in 49 days)
@@ -90,7 +90,8 @@ void systemInit(void)
     int i, gpio_count = sizeof(gpio_setup) / sizeof(gpio_setup[0]);
 
     // Configure NVIC preempt/priority groups
-    NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
+    // This means we have two bits for the preemption priority, two bits for sub-priority
+    NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
 
     // Turn on clocks for stuff we use
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2 | RCC_APB1Periph_TIM3 | RCC_APB1Periph_TIM4, ENABLE);
@@ -121,6 +122,9 @@ void systemInit(void)
 
     // SysTick
     SysTick_Config(SystemCoreClock / 1000);
+
+    // escalate the priority of the systick IRQn to highest
+    NVIC_SetPriority(SysTick_IRQn, 0  );
 }
 
 void delayMicroseconds(uint32_t us)
