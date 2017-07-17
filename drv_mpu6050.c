@@ -287,6 +287,7 @@ static volatile int16_t accel[3];
 static volatile int16_t gyro[3];
 static volatile int16_t temp;
 uint8_t all_buffer[14];
+uint64_t measurement_time = 0;
 void read_all_CB(void)
 {
   accel[0] = (int16_t)((all_buffer[0] << 8) | all_buffer[1]);
@@ -300,6 +301,7 @@ void read_all_CB(void)
   gyro[2] = (int16_t)((all_buffer[12] << 8) | all_buffer[13]);
 
   new_imu_data = true;
+  measurement_time = imu_time_us;
 }
 
 void mpu6050_request_async_update_all()
@@ -327,7 +329,7 @@ void mpu6050_async_read_all(volatile int16_t *accData, volatile int16_t *tempDat
   gyroData[0] = gyro[0];
   gyroData[1] = gyro[1];
   gyroData[2] = gyro[2];
-  (*timeData) = imu_time_us;
+  (*timeData) = measurement_time;
 }
 
 //=====================================================================================
