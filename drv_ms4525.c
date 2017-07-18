@@ -147,8 +147,6 @@ void ms4525_set_atm(uint32_t pressure_Pa)
 // Asynchronus data storage
 static uint8_t buf[4] = {0, 0, 0, 0};
 static volatile uint8_t read_status;
-static volatile int16_t raw_diff_pressure;
-static volatile int16_t raw_temp;
 static bool new_data = false;
 static bool sensor_present = false;
 
@@ -163,10 +161,7 @@ void ms4525_read_CB(void)
 
 bool ms4525_present(void)
 {
-  if (raw_diff_pressure != 0 || raw_temp != 0)
-    return true;
-  else
-    return false;
+  return sensor_present;
 }
 
 void ms4525_async_read(float* diff_press, float* temperature, float* vel)
@@ -183,9 +178,9 @@ void ms4525_async_read(float* diff_press, float* temperature, float* vel)
       temp = (0.097703957f * raw_temp)  + 223.0; // K
 
       // Filter diff pressure measurement
-      float LPF_alpha = 0.1;
+      float LPF_alpha = 0.85;
       diff_pressure_abs_Pa = raw_diff_pressure_Pa - diff_pressure_offset;
-      diff_pressure_smooth_Pa += LPF_alpha * (diff_pressure_abs_Pa - diff_pressure_smooth_Pa);
+      diff_pressure_smooth_Pa = (1.0-LPF_alpha) * diff_pressure_abs_Pa + LPF_alpha * diff_pressure_smooth_Pa;
 
       velocity = sign(diff_pressure_smooth_Pa) * 24.574f/fastInvSqrt((absf(diff_pressure_smooth_Pa) * temp  /  atmospheric_pressure));
 
@@ -210,14 +205,14 @@ void ms4525_async_update(void)
   uint64_t now_ms = millis();
 
   // if it's not time to do anything, just return
-  if((int64_t)(now_ms - next_update_ms) < 0)
+  if (now_ms < next_update_ms)
   {
     return;
   }
   else
   {
     i2c_queue_job(READ, MS4525_ADDR, 0xFF, buf, 4, &read_status, &ms4525_read_CB);
-    next_update_ms = now_ms + 20; // Poll at 50 Hz
+    next_update_ms += 1; // Poll at 1000 Hz
   }
   return;
 }
