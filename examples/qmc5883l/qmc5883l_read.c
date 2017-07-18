@@ -34,20 +34,18 @@ void setup(void)
 
   // Initialize the Magnetometer
   qmc5883lInit();
-//  qmc5883l_request_async_update();
+  qmc5883l_request_async_update();
 }
 
 void loop(void)
 {
-//  qmc5883l_request_async_update();
-//  qmc5883l_async_read(mag_data);
-  qmc5883l_read(mag_data);
+  qmc5883l_request_async_update();
+  qmc5883l_async_read(mag_data);
+//  qmc5883l_read(mag_data);
   printf("%d\t %d\t %d\n",
          (int32_t)(mag_data[0]),
          (int32_t)(mag_data[1]),
          (int32_t)(mag_data[2]));
   delay(6);
-
-
 }
 
