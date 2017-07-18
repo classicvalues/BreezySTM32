@@ -58,7 +58,12 @@
     PWM4 TIM4_CH2 PB7 [also I2C1_SDA]
     PWM5 TIM4_CH3 PB8
     PWM6 TIM4_CH4 PB9
-
+    { TIM2, GPIOA, Pin_1, TIM_Channel_2, TIM2_IRQn, 0, },          // PWM2
+    { TIM2, GPIOA, Pin_2, TIM_Channel_3, TIM2_IRQn, 0, },          // PWM3
+    { TIM2, GPIOA, Pin_3, TIM_Channel_4, TIM2_IRQn, 0, },          // PWM4
+    { TIM3, GPIOA, Pin_6, TIM_Channel_1, TIM3_IRQn, 0, },          // PWM5
+    { TIM3, GPIOA, Pin_7, TIM_Channel_2, TIM3_IRQn, 0, },          // PWM6
+    { TIM3, GPIOB, Pin_0, TIM_Channel_3, TIM3_IRQn, 0, },          // PWM7
     Groups that allow running different period (ex 50Hz servos + 400Hz throttle + etc):
     TIM2 4 channels
     TIM3 4 channels

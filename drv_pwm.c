@@ -60,14 +60,18 @@ typedef struct {
     uint16_t capture;
 } pwmPortData_t;
 
+static uint8_t sonar_trigger_port;
+
 typedef void (*pwmWriteFuncPtr)(uint8_t index, uint16_t value);  // function pointer used to write motors
 
 static pwmPortData_t   pwmPorts[MAX_PORTS];
 static uint16_t        captures[MAX_INPUTS];
+static uint16_t        sonar_reads[MAX_INPUTS];
 static pwmWriteFuncPtr pwmWritePtr = NULL;
 static uint8_t         pwmFilter = 0;
 static uint32_t        pwmLastUpdateTime_ms = 0;
 static bool            new_data = false;
+static bool            sonar_present = false;
 
 #define PWM_TIMER_MHZ 1
 #define PWM_TIMER_8_MHZ 8
@@ -231,16 +235,55 @@ static void pwmCallback(uint8_t port, uint16_t capture)
     }
 }
 
+static void sonarCallback(uint8_t port, uint16_t capture)
+{
+  if (pwmPorts[port].state == 0) {
+      // switch state
+      pwmPorts[port].rise = capture;
+      pwmPorts[port].state = 1;
+      pwmICConfig(timerHardware[port].tim, timerHardware[port].channel, TIM_ICPolarity_Falling);
+  } else {
+      pwmPorts[port].fall = capture;
+      // compute capture
+      pwmPorts[port].capture = pwmPorts[port].fall - pwmPorts[port].rise;
+//      if (pwmPorts[port].capture > 880 && pwmPorts[port].capture < 65000) { // valid pulse width
+          sonar_reads[pwmPorts[port].channel - 8] = pwmPorts[port].capture;
+          sonar_present = true;
+//      }
+      // switch state
+      pwmPorts[port].state = 0;
+      pwmICConfig(timerHardware[port].tim, timerHardware[port].channel, TIM_ICPolarity_Rising);
+  }
+}
+
+static void configureSonar(uint8_t port)
+{
+  // Initialize as a trigger for sonar ring
+  sonar_trigger_port = port;
+
+  gpio_config_t sonar_trigger_config;
+  sonar_trigger_config.mode = Mode_Out_PP;
+  sonar_trigger_config.pin = timerHardware[port].pin;
+  sonar_trigger_config.speed = Speed_50MHz;
+
+  gpioInit(timerHardware[sonar_trigger_port].gpio, &sonar_trigger_config);
+}
+
 // ===========================================================================
 
 enum {
     TYPE_IP = 0x10,
     TYPE_IW = 0x20,
     TYPE_M = 0x40,
-    TYPE_S = 0x80
+    TYPE_S = 0x80,
 };
 
-static const uint8_t multiPPM[] = {
+enum {
+    TYPE_PWM_IN_OUT = 0x000,
+    TYPE_GPIO_OUTPUT = 0x100,
+};
+
+static const uint16_t multiPPM[] = {
     PWM1 | TYPE_IP,     // PPM input
     PWM9 | TYPE_M,      // Swap to servo if needed
     PWM10 | TYPE_M,     // Swap to servo if needed
@@ -252,10 +295,29 @@ static const uint8_t multiPPM[] = {
     PWM6 | TYPE_M,      // Swap to servo if needed
     PWM7 | TYPE_M,      // Swap to servo if needed
     PWM8 | TYPE_M,      // Swap to servo if needed
-    0xFF
+    0xFFF
 };
 
-static const uint8_t multiPWM[] = {
+static const uint16_t multiPPMSONAR[] = {
+    PWM1 | TYPE_IP,     // PPM input
+    PWM2 | TYPE_S,      // Read Sonar Input
+    PWM3 | TYPE_S,
+    PWM4 | TYPE_S,
+    PWM5 | TYPE_S,
+    PWM6 | TYPE_S,
+    PWM7 | TYPE_S,
+    PWM8 | TYPE_S,
+
+    PWM9 | TYPE_M,
+    PWM10 | TYPE_M,
+    PWM11 | TYPE_M,
+    PWM12 | TYPE_M,
+    PWM13 | TYPE_M,
+    PWM14 | TYPE_M,
+    0xFFF
+};
+
+static const uint16_t multiPWM[] = {
     PWM1 | TYPE_IW,     // input #1
     PWM2 | TYPE_IW,
     PWM3 | TYPE_IW,
@@ -270,7 +332,7 @@ static const uint8_t multiPWM[] = {
     PWM12 | TYPE_M,
     PWM13 | TYPE_M,
     PWM14 | TYPE_M,     // motor #4 or #6
-    0xFF
+    0xFFF
 };
 
 
@@ -290,23 +352,27 @@ static void pwmWriteStandard(uint8_t index, uint16_t value)
 
 void pwmInit(bool useCPPM, bool usePwmFilter, bool fastPWM, uint32_t motorPwmRate, uint16_t idlePulseUsec)
 {
-    const uint8_t *setup;
+    const uint16_t *setup;
 
     // pwm filtering on input
     pwmFilter = usePwmFilter ? 1 : 0;
 
     numMotors = 0;
-
-    setup = useCPPM ? multiPPM : multiPWM;
+    setup = useCPPM ? multiPPMSONAR : multiPWM;
 
     int i;
     for (i = 0; i < MAX_PORTS; i++) {
 
         uint8_t port = setup[i] & 0x0F;
         uint8_t mask = setup[i] & 0xF0;
+        uint16_t output = setup[i] &0x0F00;
 
-        if (setup[i] == 0xFF) // terminator
+        if (setup[i] == 0x0FFF) // terminator
             break;
+
+        if(output & TYPE_GPIO_OUTPUT){
+          configureSonar(port);
+        }
 
         if (mask & TYPE_IP) {
             pwmInConfig(port, ppmCallback, 0);
@@ -314,8 +380,10 @@ void pwmInit(bool useCPPM, bool usePwmFilter, bool fastPWM, uint32_t motorPwmRat
         } else if (mask & TYPE_IW) {
             pwmInConfig(port, pwmCallback, numInputs);
             numInputs++;
+        } else if (mask & TYPE_S) {
+          pwmInConfig(port, sonarCallback, numInputs);
+          numInputs++;
         } else if (mask & TYPE_M) {
-
             uint32_t mhz = (motorPwmRate > 500 || fastPWM) ? PWM_TIMER_8_MHZ : PWM_TIMER_MHZ;
             uint32_t hz = mhz * 1000000;
 
@@ -355,3 +423,14 @@ bool pwmNewData()
 {
     return new_data;
 }
+
+float sonarRead(uint8_t channel)
+{
+    return (float)sonar_reads[channel] / 5787.405;
+}
+
+bool sonarPresent()
+{
+  return sonar_present;
+}
+
