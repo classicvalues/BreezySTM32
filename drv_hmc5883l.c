@@ -109,7 +109,7 @@ static float magGain[3] = { 1.0f, 1.0f, 1.0f };
 {
     bool ack = false;
     uint8_t sig = 0;
-    
+
     hmc5883lInit();
     delay(100);
 

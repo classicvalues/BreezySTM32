@@ -10,7 +10,7 @@
 BREEZY_DIR = ../../
 
 # Fill this out with source files for your specific project
-PROJECT_SRC = hmc5883l_read.c
+PROJECT_SRC = qmc5883l_read.c
 
 ###############################################################################
 
@@ -43,9 +43,8 @@ myproject_SRC = $(BREEZY_DIR)/main.c \
 		   $(BREEZY_DIR)/drv_serial.c \
 		   $(BREEZY_DIR)/drv_uart.c \
 		   $(BREEZY_DIR)/drv_timer.c \
-		   $(BREEZY_DIR)/breezyprintf.c \
-       $(BREEZY_DIR)/drv_mpu6050.c \
-       $(BREEZY_DIR)/drv_hmc5883l.c \
+                   $(BREEZY_DIR)/breezyprintf.c \
+                   $(BREEZY_DIR)/drv_qmc5883l.c \
 		   $(PROJECT_SRC) \
 		   $(CMSIS_SRC) \
 		   $(STDPERIPH_SRC)

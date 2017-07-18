@@ -21,6 +21,9 @@
 
 #pragma once
 
+#include <stdint.h>
+#include <stdbool.h>
+
 typedef enum I2CDevice {
     I2CDEV_1,
     I2CDEV_2,
