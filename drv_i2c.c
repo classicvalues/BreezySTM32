@@ -625,8 +625,3 @@ void i2c_init_buffer()
   i2c_buffer_tail = 0;
 }
 
-
-
-
-
-#endif
