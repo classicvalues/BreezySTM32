@@ -213,16 +213,6 @@ void mpu6050_init(bool enableInterrupt, uint16_t * acc1G, float * gyroScale, int
   mpuWriteRegisterI2C(MPU_RA_INT_ENABLE, 0x01); // DATA_RDY_EN interrupt enable
 }
 
-bool mpu6050_new_data()
-{
-  if(new_imu_data)
-  {
-    new_imu_data = false;
-    return true;
-  }
-  return false;
-}
-
 void mpu6050_read_all(int16_t *accData, int16_t *gyroData, int16_t* tempData, uint64_t *time_us)
 {
   uint8_t buf[14];
@@ -286,8 +276,10 @@ void mpu6050_read_temperature(int16_t *tempData)
 static volatile int16_t accel[3];
 static volatile int16_t gyro[3];
 static volatile int16_t temp;
+static volatile bool need_to_queue_new_i2c_job = false;
 uint8_t all_buffer[14];
 uint64_t measurement_time = 0;
+
 void read_all_CB(void)
 {
   accel[0] = (int16_t)((all_buffer[0] << 8) | all_buffer[1]);
@@ -332,6 +324,22 @@ void mpu6050_async_read_all(volatile int16_t *accData, volatile int16_t *tempDat
   (*timeData) = measurement_time;
 }
 
+bool mpu6050_new_data()
+{
+  if (need_to_queue_new_i2c_job)
+  {
+    mpu6050_request_async_update_all();
+    need_to_queue_new_i2c_job = false;
+  }
+
+  if (new_imu_data)
+  {
+    new_imu_data = false;
+    return true;
+  }
+  return false;
+}
+
 //=====================================================================================
 
 void EXTI15_10_IRQHandler(void)
@@ -344,8 +352,10 @@ void EXTI15_10_IRQHandler(void)
       cycle_cnt = SysTick->VAL;
     } while (ms != millis());
     imu_time_us = ms * 1000 + 1000 - cycle_cnt / 72;
-    mpu6050_request_async_update_all();
+    need_to_queue_new_i2c_job = true;
   }
   EXTI_ClearITPendingBit(EXTI_Line13);
 }
+
+
 
