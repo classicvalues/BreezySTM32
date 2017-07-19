@@ -40,7 +40,6 @@ static float raw_diff_pressure_Pa = 0.0f;
 static float velocity = 0.0f;
 static float diff_pressure_abs_Pa = 0.0f;
 static float diff_pressure_smooth_Pa = 0.0f;
-static float atmospheric_pressure = 101325.0f; // For ground level, should use ms5611 to provide
 
 static bool calibrated = true;
 static volatile float diff_pressure_offset = 0.0f;
@@ -48,31 +47,6 @@ static volatile float diff_pressure_offset = 0.0f;
 static inline float sign(float x)
 {
   return (x > 0) - (x < 0);
-}
-
-void ms4525_start_calibration()
-{
-  calibrated = false;
-}
-
-static void calibrate()
-{
-  static uint16_t calibrate_count = 0;
-  static float calibration_sum = 0;
-
-  calibrate_count++ ;
-  if (calibrate_count == 256 )
-  {
-    diff_pressure_offset =  calibration_sum / 127.0f; //there has been 128 reading (256-128)
-    calibrated = true;
-    calibration_sum = 0.0f;
-    calibrate_count = 0;
-  }
-  else if  (calibrate_count > 128  )
-  {
-    // Let the sensor settle for the first 128 measurements
-    calibration_sum += raw_diff_pressure_Pa;
-  }
 }
 
 bool ms4525_calibrated()
@@ -116,31 +90,18 @@ void ms4525_update()
       float LPF_alpha = 0.1;
       diff_pressure_abs_Pa = raw_diff_pressure_Pa - diff_pressure_offset;
       diff_pressure_smooth_Pa += LPF_alpha * (diff_pressure_abs_Pa - diff_pressure_smooth_Pa);
-
-      velocity = sign(diff_pressure_smooth_Pa) * 24.574f/fastInvSqrt((absf(diff_pressure_smooth_Pa) * temp  /  atmospheric_pressure));
-
     }
     else // stale data packet - ignore
     {
       return;
     }
-
-    if(!calibrated)
-      calibrate();
   }
-
 }
 
-void ms4525_read(float *diff_press, float *temperature, float* vel)
+void ms4525_read(float *diff_press, float *temperature)
 {
   (*temperature) = temp;
   (*diff_press) = diff_pressure_smooth_Pa;
-  (*vel) = velocity;
-}
-
-void ms4525_set_atm(uint32_t pressure_Pa)
-{
-  atmospheric_pressure = pressure_Pa;
 }
 
 //=================================================
@@ -164,7 +125,7 @@ bool ms4525_present(void)
   return sensor_present;
 }
 
-void ms4525_async_read(float* diff_press, float* temperature, float* vel)
+void ms4525_async_read(float* diff_press, float* temperature)
 {
   if (new_data)
   {
@@ -181,21 +142,14 @@ void ms4525_async_read(float* diff_press, float* temperature, float* vel)
       float LPF_alpha = 0.85;
       diff_pressure_abs_Pa = raw_diff_pressure_Pa - diff_pressure_offset;
       diff_pressure_smooth_Pa = (1.0-LPF_alpha) * diff_pressure_abs_Pa + LPF_alpha * diff_pressure_smooth_Pa;
-
-      velocity = sign(diff_pressure_smooth_Pa) * 24.574f/fastInvSqrt((absf(diff_pressure_smooth_Pa) * temp  /  atmospheric_pressure));
-
     }
     else // stale data packet - ignore
     {
       return;
     }
-
-    if(!calibrated)
-      calibrate();
   }
   (*temperature) = temp;
   (*diff_press) = diff_pressure_smooth_Pa;
-  (*vel) = velocity;
 }
 
 
@@ -215,30 +169,4 @@ void ms4525_async_update(void)
     next_update_ms += 1; // Poll at 1000 Hz
   }
   return;
-}
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstrict-aliasing"
-
-static float fastInvSqrt(float x)
-{
-  long i;
-  float x2, y;
-  const float threehalfs = 1.5F;
-
-  x2 = x * 0.5F;
-  y  = x;
-  i  = * (long *) &y;                         // evil floating point bit level hacking
-  i  = 0x5f3759df - (i >> 1);
-  y  = * (float *) &i;
-  y  = y * (threehalfs - (x2 * y * y));
-
-  return y;
-}
-
-#pragma GCC diagnostic pop
-
-inline static float absf(float x)
-{
-  return (x < 0) ? -x : x;
 }

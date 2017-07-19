@@ -51,7 +51,7 @@ typedef struct i2cJob{
     void (*CB)(void);
 } i2cJob_t;
 
-#define I2C_BUFFER_SIZE 64
+#define I2C_BUFFER_SIZE 1
 
 void i2cInit(I2CDevice index);
 uint16_t i2cGetErrorCounter(void);

@@ -588,8 +588,24 @@ void i2c_job_handler()
 
 void i2c_queue_job(i2cJobType_t type, uint8_t addr_, uint8_t reg_, uint8_t *data, uint8_t length, volatile uint8_t* status_, void (*CB)(void))
 {
+
+  // If this job were going to overflow the buffer, ignore it.
+  if (i2c_buffer_count >= I2C_BUFFER_SIZE)
+  {
+    return;
+  }
+
   // Get a pointer to the head
   i2cJob_t* job = i2c_buffer + i2c_buffer_head;
+
+  if (i2c_buffer_head > I2C_BUFFER_SIZE)
+  {
+    volatile int error = 1;
+  }
+  if (i2c_buffer_tail > I2C_BUFFER_SIZE)
+  {
+    volatile int error = 1;
+  }
 
   // save the data about the job
   job->type = type;

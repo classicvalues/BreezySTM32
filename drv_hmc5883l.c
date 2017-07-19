@@ -97,6 +97,8 @@
 #define HMC_POS_BIAS 1
 #define HMC_NEG_BIAS 2
 
+bool sensor_present = false;
+
 typedef enum {
   X = 0,
   Y,
@@ -140,7 +142,7 @@ bool hmc5883lInit(int boardVersion)
     gpioInit(GPIOC, &gpio);
   }
 
-  i2cWrite(MAG_ADDRESS, HMC58X3_R_CONFA, 0x010 + HMC_POS_BIAS);   // Reg A DOR = 0x010 + MS1, MS0 set to pos bias
+  sensor_present = i2cWrite(MAG_ADDRESS, HMC58X3_R_CONFA, 0x010 + HMC_POS_BIAS);   // Reg A DOR = 0x010 + MS1, MS0 set to pos bias
   // Note that the  very first measurement after a gain change maintains the same gain as the previous setting.
   // The new gain setting is effective from the second measurement and on.
   i2cWrite(MAG_ADDRESS, HMC58X3_R_CONFB, 0x60); // Set the Gain to 2.5Ga (7:5->011)
@@ -244,6 +246,14 @@ void mag_read_CB(void)
   mag_data[Y] = (mag_buffer[4] << 8 | mag_buffer[5]);
 }
 
+void mag_init_CB(void)
+{
+  if (status == I2C_JOB_COMPLETE)
+  {
+    sensor_present = true;
+  }
+}
+
 void hmc5883l_request_async_update()
 {
   static uint64_t last_update_ms = 0;
@@ -271,4 +281,9 @@ void hmc5883l_async_read(int16_t *magData)
   magData[1] = mag_data[Y];
   magData[2] = mag_data[Z];
   return;
+}
+
+bool hmc5883l_present(int board_revision)
+{
+  return sensor_present;
 }

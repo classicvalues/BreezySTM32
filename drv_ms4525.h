@@ -21,15 +21,14 @@
 #pragma once
 
 bool ms4525_init(void);
-void ms4525_set_atm(uint32_t pressure_Pa);
 
 // Blocking I2C function
 void ms4525_update();
-void ms4525_read(float *differential_pressure, float *temp, float* velocity);
+void ms4525_read(float *differential_pressure, float *temp);
 void ms4525_start_calibration();
 bool ms4525_calibrated();
 
 // Asynchronous I2C function
 bool ms4525_present(void);
 void ms4525_async_update(void);
-void ms4525_async_read(float *diff_press, float *temperature, float* vel);
+void ms4525_async_read(float *diff_press, float *temperature);
