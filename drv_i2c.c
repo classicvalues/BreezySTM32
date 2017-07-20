@@ -581,7 +581,8 @@ void i2c_queue_job(i2cJobType_t type, uint8_t addr_, uint8_t reg_, uint8_t *data
   // If this job were going to overflow the buffer, ignore it.
   if (i2c_buffer_count >= I2C_BUFFER_SIZE)
   {
-    *status_ = I2C_JOB_ERROR;
+    if(status_)
+      *status_ = I2C_JOB_ERROR;
     return;
   }
 

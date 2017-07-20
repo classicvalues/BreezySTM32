@@ -51,7 +51,7 @@ typedef struct i2cJob{
     void (*CB)(void);
 } i2cJob_t;
 
-#define I2C_BUFFER_SIZE 4
+#define I2C_BUFFER_SIZE 16
 
 void i2cInit(I2CDevice index);
 uint16_t i2cGetErrorCounter(void);
@@ -67,7 +67,7 @@ bool i2cRead(uint8_t addr_, uint8_t reg, uint8_t len, uint8_t *buf);
 // You can track progress of the job using the status pointer.  Otherwise, functions the same
 // as the blocking versions.
 //
-// This uses a circular buffer to stage jobs for the I2C peripheral.  The buffer is, by default, 64 jobs
+// This uses a circular buffer to stage jobs for the I2C peripheral.  The buffer is, by default, 16 jobs
 // long (I2C_BUFFER_SIZE), with a maximum size of 256. I hope you never queue up that many jobs, because
 // that will take a long time to process However, if you were to reach the limit, it would then start
 // ignoring new jobs until there was space on the buffer.
