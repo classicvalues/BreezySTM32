@@ -45,6 +45,7 @@ static uint16_t ms5611_c[PROM_NB];  // on-chip ROM
 static uint8_t  ms5611_osr = CMD_ADC_4096;
 float pressure = 0.0;
 float temperature = 0.0;
+static uint8_t init_state = 0;
 
 static void ms5611_reset(void)
 {
@@ -166,8 +167,12 @@ bool ms5611_init(void)
   ack = i2cRead(MS5611_ADDR, CMD_PROM_RD, 1, &sig);
   if (!ack)
     return false;
+  else
+    init_state = 1;
 
   ms5611_reset();
+
+  init_state = 2;
 
   // read all coefficients
   for (i = 0; i < PROM_NB; i++)
@@ -224,7 +229,20 @@ static volatile uint8_t pressure_read_status = 0;
 static volatile uint8_t pressure_start_status = 0;
 static uint8_t baro_state = 0;
 static uint32_t next_update_ms = 0;
-static uint32_t baro_last_update_watchdog_ms = 0;
+
+static volatile uint8_t init_status;
+static uint8_t init_command;
+static uint8_t init_buffer[6];
+
+void ms5611_init_CB(void)
+{
+  // we successfully found the sensor
+  if (init_status == I2C_JOB_COMPLETE)
+  {
+    init_state ++;
+    next_update_ms = millis() + 30;
+  }
+}
 
 void temp_request_CB(void)
 {
@@ -258,7 +276,22 @@ void ms5611_async_update(void)
     return;
   }
 
-  baro_last_update_watchdog_ms = now_ms;
+  // Try to initialize the sensor if we haven't already
+  if (init_state  < 2)
+  {
+    if (init_state == 0)
+    {
+      init_command = 1;
+      i2c_queue_job(READ, MS5611_ADDR, CMD_PROM_RD, &init_command, 1, &init_status, ms5611_init_CB);
+      return;
+    }
+    else if (init_state == 1)
+    {
+      init_command = 1;
+      i2c_queue_job(READ, MS5611_ADDR, CMD_RESET, &init_command, 1, &init_status, ms5611_init_CB);
+      return;
+    }
+  }
 
   switch (baro_state)
   {
@@ -315,10 +348,7 @@ void ms5611_async_update(void)
 
 bool ms5611_present()
 {
-  if(ms5611_up != 0 || ms5611_ut != 0)
-    return true;
-  else
-    return false;
+  return init_state > 0;
 }
 
 void ms5611_async_read(float* press, float* temp)
