@@ -29,16 +29,12 @@
 #include "drv_gpio.h"
 #include "drv_system.h"
 
-// cycles per microsecond
-static volatile uint32_t usTicks = 0;
-// current uptime for 1kHz systick timer. will rollover after 49 days. hopefully we won't care.
-static volatile uint32_t sysTickUptime = 0;
+static volatile uint64_t sysTickUptime = 0;
 
 static void cycleCounterInit(void)
 {
     RCC_ClocksTypeDef clocks;
     RCC_GetClocksFreq(&clocks);
-    usTicks = clocks.SYSCLK_Frequency / 1000000;
 }
 
 // SysTick
@@ -47,21 +43,14 @@ void SysTick_Handler(void)
     sysTickUptime++;
 }
 
-// Return system uptime in microseconds (rollover in 49 days because of ms rollover)
 uint64_t micros(void)
 {
-    volatile uint32_t ms, cycle_cnt;
-    do {
-        ms = sysTickUptime;
-        cycle_cnt = SysTick->VAL;
-    } while (ms != sysTickUptime);
-    return ms * 1000 + 1000 - cycle_cnt / usTicks;
+    return sysTickUptime * 20;
 }
 
-// Return system uptime in milliseconds (rollover in 49 days)
 uint32_t millis(void)
 {
-    return sysTickUptime;
+    return (uint32_t)(sysTickUptime / 50);
 }
 
 void systemInit(void)
@@ -121,7 +110,8 @@ void systemInit(void)
     cycleCounterInit();
 
     // SysTick
-    SysTick_Config(SystemCoreClock / 1000);
+    // Set to fire of at 50,000 Hz (which will give us 0.02 microsecond accuracy)
+    SysTick_Config(SystemCoreClock / 50000);
 
     // escalate the priority of the systick IRQn to highest
     NVIC_SetPriority(SysTick_IRQn, 0  );

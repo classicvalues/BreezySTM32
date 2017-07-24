@@ -228,7 +228,7 @@ static volatile uint8_t temp_read_status = 0;
 static volatile uint8_t pressure_read_status = 0;
 static volatile uint8_t pressure_start_status = 0;
 static uint8_t baro_state = 0;
-static uint32_t next_update_ms = 0;
+static volatile uint32_t next_update_ms = 0;
 
 static volatile uint8_t init_status;
 static uint8_t init_command;
@@ -340,8 +340,6 @@ void ms5611_async_update(void)
     baro_state = 0;
     break;
   }
-
-  next_update_ms = millis() + 50;
 
   ms5611_calculate();
 }

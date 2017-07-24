@@ -346,12 +346,7 @@ void EXTI15_10_IRQHandler(void)
 {
   if (EXTI_GetITStatus(EXTI_Line13) != RESET)
   {
-    volatile uint32_t ms, cycle_cnt;
-    do {
-      ms = millis();
-      cycle_cnt = SysTick->VAL;
-    } while (ms != millis());
-    imu_time_us = ms * 1000 + 1000 - cycle_cnt / 72;
+    imu_time_us = micros();
     need_to_queue_new_i2c_job = true;
   }
   EXTI_ClearITPendingBit(EXTI_Line13);
