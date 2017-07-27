@@ -22,7 +22,7 @@ TARGET		?= myproject
 OPTIONS		?=
 
 # Debugger optons, must be empty or GDB
-DEBUG ?=
+DEBUG ?= GDB
 
 # Serial port/Device for flashing
 SERIAL_DEVICE	?= /dev/ttyUSB0
@@ -43,7 +43,7 @@ myproject_SRC = $(BREEZY_DIR)/main.c \
 		   $(BREEZY_DIR)/drv_serial.c \
 		   $(BREEZY_DIR)/drv_uart.c \
 		   $(BREEZY_DIR)/drv_timer.c \
-		   $(BREEZY_DIR)/printf.c \
+                   $(BREEZY_DIR)/breezyprintf.c \
            $(BREEZY_DIR)/drv_mpu6050.c \
            $(BREEZY_DIR)/drv_ms4525.c \
            $(BREEZY_DIR)/drv_ms5611.c \

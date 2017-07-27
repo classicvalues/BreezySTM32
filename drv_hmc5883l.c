@@ -283,7 +283,7 @@ void hmc5883l_async_read(int16_t *magData)
   return;
 }
 
-bool hmc5883l_present(int board_revision)
+bool hmc5883l_present()
 {
   return sensor_present;
 }

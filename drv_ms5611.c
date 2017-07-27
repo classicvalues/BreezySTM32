@@ -227,12 +227,11 @@ static volatile uint8_t temp_start_status = 0;
 static volatile uint8_t temp_read_status = 0;
 static volatile uint8_t pressure_read_status = 0;
 static volatile uint8_t pressure_start_status = 0;
-static uint8_t baro_state = 0;
+static volatile uint8_t baro_state = 0;
 static volatile uint32_t next_update_ms = 0;
 
 static volatile uint8_t init_status;
 static uint8_t init_command;
-static uint8_t init_buffer[6];
 
 void ms5611_init_CB(void)
 {
@@ -246,34 +245,36 @@ void ms5611_init_CB(void)
 
 void temp_request_CB(void)
 {
-  next_update_ms = millis() + 10;
+  next_update_ms = millis() + 15;
 }
 
 void pressure_request_CB(void)
 {
-  next_update_ms = millis() + 10;
+  next_update_ms = millis() + 15;
 }
 
 void pressure_read_CB(void)
 {
   ms5611_up = (pressure_buffer[0] << 16) | (pressure_buffer[1] << 8) | pressure_buffer[2];
-  next_update_ms = millis();
 }
 
 static void temp_read_CB(void)
 {
   ms5611_ut = (temp_buffer[0] << 16) | (temp_buffer[1] << 8) | temp_buffer[2];
-  next_update_ms = millis();
 }
 
 void ms5611_async_update(void)
 {
   uint32_t now_ms = millis();
-
   // if it's not time to do anything, just return
   if (now_ms < next_update_ms)
   {
     return;
+  }
+  else
+  {
+    // this may be reduced by an i2c callback, but at the very least, monitor at 10 Hz
+    next_update_ms += 100;
   }
 
   // Try to initialize the sensor if we haven't already
@@ -296,17 +297,6 @@ void ms5611_async_update(void)
   switch (baro_state)
   {
   case 0:
-    // start a pressure read
-    i2c_queue_job(WRITE,
-                  MS5611_ADDR,
-                  CMD_ADC_CONV + CMD_ADC_D1 + ms5611_osr,
-                  &pressure_command,
-                  1,
-                  &pressure_start_status,
-                  &pressure_request_CB);
-    baro_state++;
-    break;
-  case 1:
     // Read the pressure
     i2c_queue_job(READ,
                   MS5611_ADDR,
@@ -315,10 +305,10 @@ void ms5611_async_update(void)
                   3,
                   &pressure_read_status,
                   &pressure_read_CB);
-    baro_state++;
-    break;
-  case 2:
-    // start a temp read
+//    baro_state++;
+//    break;
+//  case 1:
+    // start a temp conversion
     i2c_queue_job(WRITE,
                   MS5611_ADDR,
                   CMD_ADC_CONV + CMD_ADC_D2 + ms5611_osr,
@@ -326,9 +316,9 @@ void ms5611_async_update(void)
                   1,
                   &temp_start_status,
                   &temp_request_CB);
-    baro_state++;
+    baro_state = 1;
     break;
-  case 3:
+  case 1:
     // Read the temperature
     i2c_queue_job(READ,
                   MS5611_ADDR,
@@ -337,6 +327,20 @@ void ms5611_async_update(void)
                   3,
                   &temp_read_status,
                   &temp_read_CB);
+//    baro_state = 0;
+//    break;
+//  case 3:
+    // start a pressure conversion
+    i2c_queue_job(WRITE,
+                  MS5611_ADDR,
+                  CMD_ADC_CONV + CMD_ADC_D1 + ms5611_osr,
+                  &pressure_command,
+                  1,
+                  &pressure_start_status,
+                  &pressure_request_CB);
+    baro_state = 0;
+    break;
+  default:
     baro_state = 0;
     break;
   }

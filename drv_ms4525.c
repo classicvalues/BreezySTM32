@@ -29,15 +29,11 @@
 #define FILTERING4525_ADC_MIN_AT     10 // when abs(delta between ADC and current value) is less than MIN_AT , apply MIN
 #define FILTERING4525_ADC_MAX_AT     100 // when abs(delta between ADC and current value) is more than MAX_AT , apply MAX (interpolation in between)
 
-static float fastInvSqrt(float x);
-inline static float absf(float x);
-
 uint32_t polling_interval_ms = 20; // (ms)
 uint32_t last_measurement_time_ms = 0;
 
 static float temp = 0.0f;
 static float raw_diff_pressure_Pa = 0.0f;
-static float velocity = 0.0f;
 static float diff_pressure_abs_Pa = 0.0f;
 static float diff_pressure_smooth_Pa = 0.0f;
 

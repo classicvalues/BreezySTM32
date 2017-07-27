@@ -36,15 +36,6 @@ volatile uint8_t gyro_status = 0;
 volatile uint8_t temp_status = 0;
 volatile bool mpu_new_measurement = false;
 
-void interruptCallback(void)
-{
-  mpu_new_measurement = true;
-
-  mpu6050_request_async_accel_read(accel_data, &accel_status);
-  mpu6050_request_async_gyro_read(gyro_data, &gyro_status);
-  mpu6050_request_async_temp_read(&temp_data, &temp_status);
-}
-
 uint32_t start_time = 0;
 
 bool baro_present= false;
@@ -58,19 +49,18 @@ void setup(void)
 
   // Init Baro
   i2cWrite(0, 0, 0);
-  baro_present = ms5611_init();
+  ms5611_init();
 
   // Init Mag
-  mag_present = hmc5883lInit(BOARD_REV);
+  hmc5883lInit(BOARD_REV);
 
   // Init Sonar
-  sonar_present = mb1242_init();
+  //  mb1242_init();
 
   // Init Airspeed
-  airspeed_present = ms4525_detect();
+  //  airspeed_present = ms4525_detect();
 
   //Init IMU (has to come last because of the ISR)
-  mpu6050_register_interrupt_cb(&interruptCallback);
   uint16_t acc1G;
   mpu6050_init(true, &acc1G, &gyro_scale, BOARD_REV);
   accel_scale = 9.80665f / acc1G;
@@ -79,57 +69,54 @@ void setup(void)
 void loop(void)
 {
 
-  int32_t baro = 0;
-  int32_t temp = 0;
-  int32_t sonar = 0;
+  float baro = 0;
+  float temp = 0;
+  //  int32_t sonar = 0;
   int32_t airspeed = 0;
   // Update Baro
-  if(baro_present)
+  ms5611_async_update();
+  if(ms5611_present())
   {
-    ms5611_request_async_update();
-    baro = ms5611_read_pressure();
-    temp = ms5611_read_temperature();
+    ms5611_async_read(&baro, &temp);
   }
 
   // Update Mag
-  if(mag_present)
+  hmc5883l_request_async_update();
+  if(hmc5883l_present())
   {
-    hmc5883l_request_async_update();
     hmc5883l_async_read(mag_data);
   }
 
-  // Update Sonar
-  if(sonar_present)
+  //  // Update Sonar
+  //  if(sonar_present)
+  //  {
+  //    sonar = mb1242_poll();
+  //  }
+
+  //  // Update Airspeed
+  //  if(airspeed_present)
+  //  {
+  //    ms4525_request_async_update();
+  //    airspeed = ms4525_read_velocity();
+  //  }
+
+  static uint64_t imu_timestamp_us = 0;
+  if (mpu6050_new_data())
   {
-    sonar = mb1242_poll();
+    mpu6050_async_read_all(accel_data, &temp_data, gyro_data, &imu_timestamp_us);
   }
 
-  // Update Airspeed
-  if(airspeed_present)
+  static uint32_t last_print_ms = 0;
+  // Throttle printing
+  if(millis() > last_print_ms + 10)
   {
-    ms4525_request_async_update();
-    airspeed = ms4525_read_velocity();
-  }
-
-  if (accel_status == I2C_JOB_COMPLETE
-      && gyro_status == I2C_JOB_COMPLETE
-      && temp_status == I2C_JOB_COMPLETE)
-  {
-    static int32_t count = 0;
-    // Throttle printing
-    if(count > 1)
-    {
-      count = 0;
-      printf("%d\t %d\t %d\t %d\t %d\t %d\n",
-             (int32_t)(accel_data[2]*accel_scale*1000.0f),
-             (int32_t)(gyro_data[2]*gyro_scale*1000.0f),
-             (int32_t)mag_data[2],
-             (int32_t)sonar,
-             (int32_t)airspeed,
-             (int32_t)baro);
-      //                    0);
-    }
-    delay(10);
-    count++;
+    last_print_ms += 10;
+    printf("%d\t %d\t %d\t %d\t %d\t %d\n",
+           (int32_t)(accel_data[2]*accel_scale*1000.0f),
+        (int32_t)(gyro_data[2]*gyro_scale*1000.0f),
+        (int32_t)imu_timestamp_us,
+        (int32_t)mag_data[2],
+        (int32_t)baro,
+        (int32_t)i2cGetErrorCounter());
   }
 }
