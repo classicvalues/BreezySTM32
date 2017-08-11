@@ -218,8 +218,8 @@ void ms5611_read(float* press, float* temp)
 
 //===================================================================
 // ASYNC FUNCTIONS
-static volatile uint8_t pressure_buffer[3];
-static volatile uint8_t temp_buffer[3];
+static uint8_t pressure_buffer[3];
+static uint8_t temp_buffer[3];
 
 static uint8_t temp_command = 1;
 static uint8_t pressure_command = 1;

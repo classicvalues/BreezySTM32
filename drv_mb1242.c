@@ -113,10 +113,11 @@ void mb1242_read_CB(void)
 
 void mb1242_async_update()
 {
-  uint64_t now_ms = millis();
-  if (now_ms > last_update_time_us + 25) // 40 Hz update rate
+  uint32_t now_ms = millis();
+  static uint32_t next_update_time_ms;
+  if (now_ms > next_update_time_ms)
   {
-    last_update_time_us = now_ms;
+    next_update_time_ms += 25;  // 40 Hz update rate
     if (state == 0)
     {
       // Start a sonar measurement,
