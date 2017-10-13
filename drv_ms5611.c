@@ -23,6 +23,8 @@
 #include <breezystm32.h>
 #include <limits.h>
 
+#include <math.h>
+
 // MS5611, Standard address 0x77
 #define MS5611_ADDR             0x77
 
@@ -146,10 +148,6 @@ static void ms5611_calculate()
 
     pressure = (float)press; // Pa
     temperature = (float)temp/ 100.0 + 273.0; // K
-
-//    float pre_adjust_altitude = fast_alt(pressure);
-
-//    altitude = fast_alt(pressure) - offset;
   }
 }
 
@@ -256,11 +254,13 @@ void pressure_request_CB(void)
 void pressure_read_CB(void)
 {
   ms5611_up = (pressure_buffer[0] << 16) | (pressure_buffer[1] << 8) | pressure_buffer[2];
+  next_update_ms = millis() + 10;
 }
 
 static void temp_read_CB(void)
 {
   ms5611_ut = (temp_buffer[0] << 16) | (temp_buffer[1] << 8) | temp_buffer[2];
+  next_update_ms = millis() + 10;
 }
 
 void ms5611_async_update(void)
@@ -305,9 +305,9 @@ void ms5611_async_update(void)
                   3,
                   &pressure_read_status,
                   &pressure_read_CB);
-//    baro_state++;
-//    break;
-//  case 1:
+    baro_state = 1;
+    break;
+  case 1:
     // start a temp conversion
     i2c_queue_job(WRITE,
                   MS5611_ADDR,
@@ -316,9 +316,9 @@ void ms5611_async_update(void)
                   1,
                   &temp_start_status,
                   &temp_request_CB);
-    baro_state = 1;
+    baro_state = 2;
     break;
-  case 1:
+  case 2:
     // Read the temperature
     i2c_queue_job(READ,
                   MS5611_ADDR,
@@ -327,9 +327,9 @@ void ms5611_async_update(void)
                   3,
                   &temp_read_status,
                   &temp_read_CB);
-//    baro_state = 0;
-//    break;
-//  case 3:
+    baro_state = 3;
+    break;
+  case 3:
     // start a pressure conversion
     i2c_queue_job(WRITE,
                   MS5611_ADDR,
