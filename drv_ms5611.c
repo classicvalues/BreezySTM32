@@ -266,6 +266,7 @@ static void temp_read_CB(void)
 void ms5611_async_update(void)
 {
   uint32_t now_ms = millis();
+
   // if it's not time to do anything, just return
   if (now_ms < next_update_ms)
   {
@@ -275,23 +276,6 @@ void ms5611_async_update(void)
   {
     // this may be reduced by an i2c callback, but at the very least, monitor at 10 Hz
     next_update_ms += 100;
-  }
-
-  // Try to initialize the sensor if we haven't already
-  if (init_state  < 2)
-  {
-    if (init_state == 0)
-    {
-      init_command = 1;
-      i2c_queue_job(READ, MS5611_ADDR, CMD_PROM_RD, &init_command, 1, &init_status, ms5611_init_CB);
-      return;
-    }
-    else if (init_state == 1)
-    {
-      init_command = 1;
-      i2c_queue_job(READ, MS5611_ADDR, CMD_RESET, &init_command, 1, &init_status, ms5611_init_CB);
-      return;
-    }
   }
 
   switch (baro_state)
@@ -344,7 +328,6 @@ void ms5611_async_update(void)
     baro_state = 0;
     break;
   }
-
   ms5611_calculate();
 }
 

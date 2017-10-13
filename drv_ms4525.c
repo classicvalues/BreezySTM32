@@ -32,32 +32,20 @@
 uint32_t polling_interval_ms = 20; // (ms)
 uint32_t last_measurement_time_ms = 0;
 
-static float temp = 0.0f;
-static float raw_diff_pressure_Pa = 0.0f;
-static float diff_pressure_abs_Pa = 0.0f;
-static float diff_pressure_smooth_Pa = 0.0f;
+static volatile float temp_measurement = 0.0f;
+static volatile float raw_diff_pressure_Pa = 0.0f;
 
-static bool calibrated = true;
-static volatile float diff_pressure_offset = 0.0f;
 
 static inline float sign(float x)
 {
   return (x > 0) - (x < 0);
 }
 
-bool ms4525_calibrated()
-{
-  return calibrated;
-}
-
-
-
 bool ms4525_init(void)
 {
   uint8_t buf[1];
   bool airspeed_present = false;
   airspeed_present |= i2cRead(MS4525_ADDR, 0xFF, 1, buf);
-  calibrated = false;
   return airspeed_present;
 }
 
@@ -80,12 +68,7 @@ void ms4525_update()
 
       // Convert to Pa and K
       raw_diff_pressure_Pa = -(((float)raw_diff_pressure - 1638.3f) / 6553.2f - 1.0f) * 6894.757;
-      temp = (0.097703957f * raw_temp)  + 223.0; // K
-
-      // Filter diff pressure measurement
-      float LPF_alpha = 0.1;
-      diff_pressure_abs_Pa = raw_diff_pressure_Pa - diff_pressure_offset;
-      diff_pressure_smooth_Pa += LPF_alpha * (diff_pressure_abs_Pa - diff_pressure_smooth_Pa);
+      temp_measurement = (0.097703957f * raw_temp)  + 223.0; // K
     }
     else // stale data packet - ignore
     {
@@ -96,8 +79,8 @@ void ms4525_update()
 
 void ms4525_read(float *diff_press, float *temperature)
 {
-  (*temperature) = temp;
-  (*diff_press) = diff_pressure_smooth_Pa;
+  (*temperature) = temp_measurement;
+  (*diff_press) = raw_diff_pressure_Pa;
 }
 
 //=================================================
@@ -132,27 +115,18 @@ void ms4525_async_read(float* diff_press, float* temperature)
       int16_t raw_temp = ( 0xFFE0 & ((buf[2] << 8) + buf[3])) >> 5;
       // Convert to Pa and K
       raw_diff_pressure_Pa = -(((float)raw_diff_pressure - 1638.3f) / 6553.2f - 1.0f) * 6894.757;
-      temp = (0.097703957f * raw_temp)  + 223.0; // K
-
-      // Filter diff pressure measurement
-      float LPF_alpha = 0.85;
-      diff_pressure_abs_Pa = raw_diff_pressure_Pa - diff_pressure_offset;
-      diff_pressure_smooth_Pa = (1.0-LPF_alpha) * diff_pressure_abs_Pa + LPF_alpha * diff_pressure_smooth_Pa;
-    }
-    else // stale data packet - ignore
-    {
-      return;
+      temp_measurement = (0.097703957f * raw_temp)  + 223.0; // K
     }
   }
-  (*temperature) = temp;
-  (*diff_press) = diff_pressure_smooth_Pa;
+  (*temperature) = temp_measurement;
+  (*diff_press) = raw_diff_pressure_Pa;
 }
 
 
 void ms4525_async_update(void)
 {
-  static uint64_t next_update_ms = 0;
-  uint64_t now_ms = millis();
+  static volatile uint32_t next_update_ms = 0;
+  uint32_t now_ms = millis();
 
   // if it's not time to do anything, just return
   if (now_ms < next_update_ms)
@@ -162,7 +136,7 @@ void ms4525_async_update(void)
   else
   {
     i2c_queue_job(READ, MS4525_ADDR, 0xFF, buf, 4, &read_status, &ms4525_read_CB);
-    next_update_ms += 1; // Poll at 1000 Hz
+    next_update_ms += 20; // Poll at 50 Hz
   }
   return;
 }
