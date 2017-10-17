@@ -35,6 +35,7 @@ along with BreezySTM32.  If not, see <http://www.gnu.org/licenses/>.
 #include "drv_uart.h"
 #include "drv_mpu6050.h"
 #include "drv_ms5611.h"
+#include "drv_bmp280.h"
 #include "drv_mb1242.h"
 #include "drv_sen13680.h"
 #include "drv_spi.h"
@@ -50,3 +51,4 @@ extern serialPort_t * Serial1;
 void setup(void);
 
 void loop(void);
+
