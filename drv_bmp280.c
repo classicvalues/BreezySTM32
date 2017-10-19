@@ -60,7 +60,6 @@ static float pressure;
 static float temperature;
 static uint8_t buffer[BMP280_DATA_FRAME_SIZE];
 static bool new_data = false;
-static state = 0;
 
 bool bmp280_present()
 {
