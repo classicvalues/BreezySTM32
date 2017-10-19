@@ -44,9 +44,9 @@ void loop(void)
       bmp280_async_read(&pressure, &temperature);
       printf("Pressure: %d.%d Pa\tTemperature: %d.%d K, i2c_errors: %d\n",
              (int32_t) pressure,
-             (int32_t) (pressure*1000) % 1000,
+             (int32_t) abs(pressure*1000) % 1000,
              (int32_t) temperature,
-             (int32_t) (temperature*1000) % 1000,
+             (int32_t) abs(temperature*1000) % 1000,
              (int32_t) i2cGetErrorCounter());
     }
   else

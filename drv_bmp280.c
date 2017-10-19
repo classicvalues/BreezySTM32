@@ -21,6 +21,7 @@
 #define BMP280_TEMPERATURE_LSB_REG           0xFB  /* Temperature LSB Reg */
 #define BMP280_TEMPERATURE_XLSB_REG          0xFC  /* Temperature XLSB Reg */
 #define BMP280_FORCED_MODE                   0x01
+#define BMP280_NORMAL_MODE                   0x03
 
 #define BMP280_TEMPERATURE_CALIB_DIG_T1_LSB_REG             0x88
 #define BMP280_PRESSURE_TEMPERATURE_CALIB_DATA_LENGTH       24
@@ -59,6 +60,7 @@ static float pressure;
 static float temperature;
 static uint8_t buffer[BMP280_DATA_FRAME_SIZE];
 static bool new_data = false;
+static state = 0;
 
 bool bmp280_present()
 {
@@ -71,7 +73,7 @@ bool bmp280_init()
   while(millis() < 20);
 
   uint8_t buf;
-  if (!i2cRead(BMP280_DEFAULT_ADDR, BMP280_CHIP_ID_REG, 1, &buf))
+    if (!i2cRead(BMP280_DEFAULT_ADDR, BMP280_CHIP_ID_REG, 1, &buf))
     return false;
   else
     sensor_present = true;
@@ -80,7 +82,7 @@ bool bmp280_init()
   i2cRead(BMP280_DEFAULT_ADDR, BMP280_TEMPERATURE_CALIB_DIG_T1_LSB_REG, 24, (uint8_t *)&bmp280_cal);
 
   // set oversampling + power mode (forced), and start sampling
-  i2cWrite(BMP280_DEFAULT_ADDR, BMP280_CTRL_MEAS_REG, (BMP280_OVERSAMP_8X << 2 | BMP280_OVERSAMP_1X << 5 | BMP280_FORCED_MODE));
+  i2cWrite(BMP280_DEFAULT_ADDR, BMP280_CTRL_MEAS_REG, (BMP280_OVERSAMP_8X << 2 | BMP280_OVERSAMP_1X << 5 | BMP280_NORMAL_MODE));
 
   return true;
 }
@@ -152,6 +154,8 @@ static volatile uint8_t async_read_status;
 static void bmp280_async_read_cb(void)
 {
   new_data = true;
+  pressure_raw = (int32_t)((((uint32_t)(buffer[0])) << 12) | (((uint32_t)(buffer[1])) << 4) | ((uint32_t)buffer[2] >> 4));
+  temperature_raw = (int32_t)((((uint32_t)(buffer[3])) << 12) | (((uint32_t)(buffer[4])) << 4) | ((uint32_t)buffer[5] >> 4));
 }
 
 void bmp280_async_update()
