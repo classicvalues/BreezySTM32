@@ -162,7 +162,7 @@ void ms4525_async_update(void)
   else
   {
     i2c_queue_job(READ, MS4525_ADDR, 0xFF, buf, 4, &read_status, &ms4525_read_CB);
-    next_update_ms += 1; // Poll at 1000 Hz
+    next_update_ms += 20; // Poll at 50 Hz
   }
   return;
 }
