@@ -1,7 +1,7 @@
 /*
 breezystm32.h : general header for BreezySTM32 library
 
-Copyright (C) 2016 Simon D. Levy 
+Copyright (C) 2016 Simon D. Levy
 
 This file is part of BreezySTM32.
 
@@ -43,7 +43,10 @@ along with BreezySTM32.  If not, see <http://www.gnu.org/licenses/>.
 #include "drv_flashfs.h"
 #include "drv_ms4525.h"
 #include "drv_hmc5883l.h"
+
+#ifdef BREEZYPRINTF
 #include "breezyprintf.h"
+#endif
 
 extern serialPort_t * Serial1;
 
