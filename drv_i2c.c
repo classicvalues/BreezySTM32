@@ -37,7 +37,6 @@ static void i2c_ev_handler(void);
 static void i2cUnstick(void);
 
 // I2C Circular Buffer Variables
-static bool i2c_buffer_lock = false;
 static i2cJob_t i2c_buffer[I2C_BUFFER_SIZE + 10];
 static volatile uint8_t i2c_buffer_head;
 static volatile uint8_t i2c_buffer_tail;
@@ -112,6 +111,9 @@ static bool i2cHandleHardwareFailure(void)
 
 bool i2cWriteBuffer(uint8_t addr_, uint8_t reg_, uint8_t len_, uint8_t *data)
 {
+  if (busy)
+    return false;
+  busy = 1;
   uint32_t timeout = I2C_DEFAULT_TIMEOUT;
 
   addr = addr_ << 1;
@@ -121,7 +123,7 @@ bool i2cWriteBuffer(uint8_t addr_, uint8_t reg_, uint8_t len_, uint8_t *data)
   write_p = data;
   read_p = data;
   bytes = len_;
-  busy = 1;
+  status = NULL;
   error = false;
 
   if (!I2Cx)
@@ -156,6 +158,12 @@ bool i2cWrite(uint8_t addr_, uint8_t reg_, uint8_t data)
 
 bool i2cRead(uint8_t addr_, uint8_t reg_, uint8_t len, uint8_t *buf)
 {
+  if (busy)
+  {
+    i2cErrorCount++;
+    return false;
+  }
+  busy = 1;
   uint32_t timeout = I2C_DEFAULT_TIMEOUT;
 
   addr = addr_ << 1;
@@ -165,8 +173,9 @@ bool i2cRead(uint8_t addr_, uint8_t reg_, uint8_t len, uint8_t *buf)
   read_p = buf;
   write_p = buf;
   bytes = len;
-  busy = 1;
   error = false;
+  status = NULL;
+  complete_CB = NULL;
 
   if (!I2Cx)
     return false;
@@ -195,6 +204,13 @@ bool i2cRead(uint8_t addr_, uint8_t reg_, uint8_t len, uint8_t *buf)
 
 bool i2cReadAsync(uint8_t addr_, uint8_t reg_, uint8_t len, uint8_t *buf, volatile uint8_t* status_, void (*CB)(void))
 {
+  if (busy)
+  {
+    i2cErrorCount++;
+    return false;
+  }
+  busy = 1;
+  
   uint32_t timeout = I2C_DEFAULT_TIMEOUT;
 
   addr = addr_ << 1;
@@ -204,7 +220,6 @@ bool i2cReadAsync(uint8_t addr_, uint8_t reg_, uint8_t len, uint8_t *buf, volati
   read_p = buf;
   write_p = buf;
   bytes = len;
-  busy = 1;
   error = false;
   status = status_;
   complete_CB = CB;
@@ -228,8 +243,14 @@ bool i2cReadAsync(uint8_t addr_, uint8_t reg_, uint8_t len, uint8_t *buf, volati
 
 bool i2cWriteAsync(uint8_t addr_, uint8_t reg_, uint8_t len_, uint8_t *buf_, volatile uint8_t* status_, void (*CB)(void))
 {
+  if (busy)
+  {
+    i2cErrorCount++;
+    return false;
+  }
+  busy = 1;
+  
   uint32_t timeout = I2C_DEFAULT_TIMEOUT;
-
   addr = addr_ << 1;
   reg = reg_;
   writing = 1;
@@ -237,7 +258,6 @@ bool i2cWriteAsync(uint8_t addr_, uint8_t reg_, uint8_t len_, uint8_t *buf_, vol
   write_p = buf_;
   read_p = buf_;
   bytes = len_;
-  busy = 1;
   error = false;
   status = status_;
   complete_CB = CB;
@@ -409,7 +429,7 @@ void i2c_ev_handler(void)
     if (status){
       (*status) = I2C_JOB_COMPLETE;                               // Update status
     }
-    if (complete_CB != NULL){
+    if (complete_CB){
       complete_CB();                                              // Call the custom callback (we are finished)
     }
     busy = 0;
@@ -526,7 +546,7 @@ static void i2cUnstick(void)
 }
 
 void i2c_job_handler()
-{
+{ 
   if(i2c_buffer_count == 0)
   {
     // the queue is empty, stop performing i2c until
@@ -536,8 +556,8 @@ void i2c_job_handler()
 
   if(busy)
   {
-    // wait for the current job to finish.  This function
-    // will get called again when the job is done
+    // This should never happen
+    i2cErrorCount++;
     return;
   }
 
@@ -581,6 +601,7 @@ void i2c_queue_job(i2cJobType_t type, uint8_t addr_, uint8_t reg_, uint8_t *data
   // If this job were going to overflow the buffer, ignore it.
   if (i2c_buffer_count >= I2C_BUFFER_SIZE)
   {
+    i2cErrorCount++;
     if(status_)
       *status_ = I2C_JOB_ERROR;
     return;
@@ -590,8 +611,6 @@ void i2c_queue_job(i2cJobType_t type, uint8_t addr_, uint8_t reg_, uint8_t *data
   volatile i2cJob_t* job = i2c_buffer + i2c_buffer_head;
   // Increment the buffer head for next call
   i2c_buffer_head = (i2c_buffer_head + 1) % I2C_BUFFER_SIZE;
-  // Increment the buffer size
-  i2c_buffer_count++;
 
   // save the data about the job
   job->type = type;
@@ -606,13 +625,21 @@ void i2c_queue_job(i2cJobType_t type, uint8_t addr_, uint8_t reg_, uint8_t *data
   // change job status
   if (job->status)
     (*job->status) = I2C_JOB_QUEUED;
-
-  if(i2c_buffer_count == 1)
+  
+  if (i2c_buffer_count != 0 && !busy)
+  {
+    // this is a problem
+    volatile int debug = 1;
+  }
+  
+  // Increment the buffer size
+  i2c_buffer_count++;
+  
+  if(i2c_buffer_count == 1 && !busy)
   {
     // if the buffer queue was empty, restart i2c job handling
     i2c_job_handler();
   }
-  i2c_buffer_lock = false;
 
   return;
 }

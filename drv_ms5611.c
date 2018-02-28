@@ -154,34 +154,6 @@ static void ms5611_calculate()
 
 // =======================================================================================
 
-bool ms5611_init(void)
-{
-  bool ack = false;
-  uint8_t sig;
-  int i;
-
-  while(millis() < 10); // No idea how long the chip takes to power-up, but let's make it 10ms
-
-  ack = i2cRead(MS5611_ADDR, CMD_PROM_RD, 1, &sig);
-  if (!ack)
-    return false;
-  else
-    init_state = 1;
-
-  ms5611_reset();
-
-  init_state = 2;
-
-  // read all coefficients
-  for (i = 0; i < PROM_NB; i++)
-    ms5611_c[i] = ms5611_prom(i);
-  // check crc, bail out if wrong
-  if (ms5611_crc(ms5611_c) != 0)
-    return false;
-
-  return true;
-}
-
 void ms5611_update(void)
 {
   static uint32_t next_time_ms = 0;
@@ -216,6 +188,15 @@ void ms5611_read(float* press, float* temp)
 
 //===================================================================
 // ASYNC FUNCTIONS
+typedef enum
+{
+  START_PRESSURE = 0,
+  READ_PRESSURE = 1,
+  START_TEMP = 2,
+  READ_TEMP = 3
+} baro_state_t;
+
+
 static uint8_t pressure_buffer[3];
 static uint8_t temp_buffer[3];
 
@@ -225,42 +206,72 @@ static volatile uint8_t temp_start_status = 0;
 static volatile uint8_t temp_read_status = 0;
 static volatile uint8_t pressure_read_status = 0;
 static volatile uint8_t pressure_start_status = 0;
-static volatile uint8_t baro_state = 0;
+static volatile baro_state_t baro_state = 0;
 static volatile uint32_t next_update_ms = 0;
+static volatile bool new_data = false;
+static volatile bool sensor_present = false;
+static volatile bool watchdog = false;
 
-static volatile uint8_t init_status;
-static uint8_t init_command;
-
-void ms5611_init_CB(void)
+bool ms5611_init(void)
 {
-  // we successfully found the sensor
-  if (init_status == I2C_JOB_COMPLETE)
-  {
-    init_state ++;
-    next_update_ms = millis() + 30;
-  }
+  bool ack = false;
+  uint8_t sig;
+  int i;
+
+  while(millis() < 10); // No idea how long the chip takes to power-up, but let's make it 10ms
+
+  sensor_present = true;
+  watchdog = true;
+
+  ack = i2cRead(MS5611_ADDR, CMD_PROM_RD, 1, &sig);
+  if (!ack)
+    sensor_present = false;
+
+  ms5611_reset();
+
+  baro_state = START_PRESSURE;
+
+  // read all coefficients
+  for (i = 0; i < PROM_NB; i++)
+    ms5611_c[i] = ms5611_prom(i);
+  // check crc, bail out if wrong
+  if (ms5611_crc(ms5611_c) != 0)
+    sensor_present = false;
+
+  return sensor_present;
 }
+
 
 void temp_request_CB(void)
 {
   next_update_ms = millis() + 15;
+  baro_state = READ_TEMP;
+  watchdog = true;
 }
 
 void pressure_request_CB(void)
 {
   next_update_ms = millis() + 15;
+  baro_state = READ_PRESSURE;
+  watchdog = true;
 }
 
 void pressure_read_CB(void)
 {
+  new_data = true;
   ms5611_up = (pressure_buffer[0] << 16) | (pressure_buffer[1] << 8) | pressure_buffer[2];
   next_update_ms = millis() + 10;
+  baro_state = START_TEMP;
+  watchdog = true;
 }
 
 static void temp_read_CB(void)
 {
+  new_data = true;
   ms5611_ut = (temp_buffer[0] << 16) | (temp_buffer[1] << 8) | temp_buffer[2];
   next_update_ms = millis() + 10;
+  baro_state = START_PRESSURE;
+  watchdog = true;
 }
 
 void ms5611_async_update(void)
@@ -272,48 +283,30 @@ void ms5611_async_update(void)
   {
     return;
   }
+  else if (!watchdog)
+  {
+    // This shouldn't happen, and indicates an error.  Let's try resetting the chip
+    i2c_queue_job(WRITE,
+                MS5611_ADDR,
+                CMD_RESET,
+                &pressure_command,
+                1,
+                NULL,
+                NULL);
+    next_update_ms += 3;
+    watchdog = true;
+    return;
+  }
   else
   {
     // this may be reduced by an i2c callback, but at the very least, monitor at 10 Hz
     next_update_ms += 100;
+    watchdog = false;
   }
 
   switch (baro_state)
   {
-  case 0:
-    // Read the pressure
-    i2c_queue_job(READ,
-                  MS5611_ADDR,
-                  CMD_ADC_READ,
-                  pressure_buffer,
-                  3,
-                  &pressure_read_status,
-                  &pressure_read_CB);
-    baro_state = 1;
-    break;
-  case 1:
-    // start a temp conversion
-    i2c_queue_job(WRITE,
-                  MS5611_ADDR,
-                  CMD_ADC_CONV + CMD_ADC_D2 + ms5611_osr,
-                  &temp_command,
-                  1,
-                  &temp_start_status,
-                  &temp_request_CB);
-    baro_state = 2;
-    break;
-  case 2:
-    // Read the temperature
-    i2c_queue_job(READ,
-                  MS5611_ADDR,
-                  CMD_ADC_READ,
-                  temp_buffer,
-                  3,
-                  &temp_read_status,
-                  &temp_read_CB);
-    baro_state = 3;
-    break;
-  case 3:
+  case START_PRESSURE:
     // start a pressure conversion
     i2c_queue_job(WRITE,
                   MS5611_ADDR,
@@ -322,22 +315,55 @@ void ms5611_async_update(void)
                   1,
                   &pressure_start_status,
                   &pressure_request_CB);
-    baro_state = 0;
+    break;
+  case READ_PRESSURE:
+    // Read the pressure
+    i2c_queue_job(READ,
+                  MS5611_ADDR,
+                  CMD_ADC_READ,
+                  pressure_buffer,
+                  3,
+                  &pressure_read_status,
+                  &pressure_read_CB);
+    break;
+  case START_TEMP:
+    // start a temp conversion
+    i2c_queue_job(WRITE,
+                  MS5611_ADDR,
+                  CMD_ADC_CONV + CMD_ADC_D2 + ms5611_osr,
+                  &temp_command,
+                  1,
+                  &temp_start_status,
+                  &temp_request_CB);
+    break;
+  case READ_TEMP:
+    // Read the temperature
+    i2c_queue_job(READ,
+                  MS5611_ADDR,
+                  CMD_ADC_READ,
+                  temp_buffer,
+                  3,
+                  &temp_read_status,
+                  &temp_read_CB);
     break;
   default:
-    baro_state = 0;
+    baro_state = START_PRESSURE;
     break;
   }
-  ms5611_calculate();
 }
 
 bool ms5611_present()
 {
-  return init_state > 0;
+  return sensor_present;
 }
 
 void ms5611_async_read(float* press, float* temp)
 {
+  if (new_data)
+  {
+    ms5611_calculate();
+    new_data = false;
+  }
   (*press) = pressure;
   (*temp) = temperature;
 }
