@@ -20,20 +20,16 @@
 
 #include <breezystm32.h>
 
-// MS4525 address 0x28 for most common version
-#define MS4525_ADDR   0x28
-#define STATUS_MASK   0x3F
+static const uint8_t ADDR = 0x28;
+static uint8_t buf_[4];
+static float diff_press_;
+static float temp_;
+static uint32_t next_update_ms_;
+static uint32_t last_update_ms_;
+static bool new_data_;
+static bool sensor_present_;
 
-#define FILTERING4525_ADC_MIN        0.001   //
-#define FILTERING4525_ADC_MAX        0.01 //
-#define FILTERING4525_ADC_MIN_AT     10 // when abs(delta between ADC and current value) is less than MIN_AT , apply MIN
-#define FILTERING4525_ADC_MAX_AT     100 // when abs(delta between ADC and current value) is more than MAX_AT , apply MAX (interpolation in between)
-
-uint32_t polling_interval_ms = 20; // (ms)
-uint32_t last_measurement_time_ms = 0;
-
-static volatile float temp_measurement = 0.0f;
-static volatile float raw_diff_pressure_Pa = 0.0f;
+static void cb(uint8_t result);
 
 
 static inline float sign(float x)
@@ -41,102 +37,62 @@ static inline float sign(float x)
   return (x > 0) - (x < 0);
 }
 
-bool ms4525_init(void)
+bool ms4525_init()
 {
-  uint8_t buf[1];
-  bool airspeed_present = false;
-  airspeed_present |= i2cRead(MS4525_ADDR, 0xFF, 1, buf);
-  return airspeed_present;
+  sensor_present_ = false;
+  if (i2cWrite(ADDR, 0xFF, 0) == true)
+    sensor_present_ = true;
+  else
+    sensor_present_ = false;
+  next_update_ms_ = millis();    
+  last_update_ms_ = millis();
+  return sensor_present_;
 }
 
 
-void ms4525_update()
+void ms4525_async_update()
 {
-  uint8_t buf[4];
-
-  uint32_t now_ms = millis();
-  if(now_ms > last_measurement_time_ms + polling_interval_ms)
+  if (millis() > next_update_ms_)
   {
-    last_measurement_time_ms = now_ms;
-    i2cRead(MS4525_ADDR, 0xFF, 4, buf);
-
-    uint8_t status = (buf[0] & 0xC0) >> 6;
-    if(status == 0x00) // good data packet
-    {
-      int16_t raw_diff_pressure = 0x3FFF & ((buf[0] << 8) + buf[1]);
-      int16_t raw_temp = ( 0xFFE0 & ((buf[2] << 8) + buf[3])) >> 5;
-
-      // Convert to Pa and K
-      raw_diff_pressure_Pa = -(((float)raw_diff_pressure - 1638.3f) / 6553.2f - 1.0f) * 6894.757;
-      temp_measurement = (0.097703957f * raw_temp)  + 223.0; // K
-    }
-    else // stale data packet - ignore
-    {
-      return;
-    }
+    i2c_queue_job(READ, ADDR, 0xFF, buf_, 4, NULL, &cb);
+    next_update_ms_ += 100;
   }
 }
 
-void ms4525_read(float *diff_press, float *temperature)
+bool ms4525_present()
 {
-  (*temperature) = temp_measurement;
-  (*diff_press) = raw_diff_pressure_Pa;
+  if (sensor_present_ && millis() > last_update_ms_ + 200)
+    sensor_present_ = false;
+  return sensor_present_;
 }
 
-//=================================================
-// Asynchronus data storage
-static uint8_t buf[4] = {0, 0, 0, 0};
-static volatile uint8_t read_status;
-static bool new_data = false;
-static bool sensor_present = false;
-
-void ms4525_read_CB(uint8_t result)
+void cb(uint8_t result)
 {
   if (result != I2C_JOB_ERROR)
   {
-    new_data = true;
-    sensor_present = true;
+    new_data_ = true;
+    sensor_present_ = true;
   }
+  next_update_ms_ += 20;
+  last_update_ms_ = millis();
 }
 
-bool ms4525_present(void)
+void ms4525_async_read(float* differential_pressure, float* temp)
 {
-  return sensor_present;
-}
-
-void ms4525_async_read(float* diff_press, float* temperature)
-{
-  if (new_data)
+  if (new_data_)
   {
-    uint8_t status = (buf[0] & 0xC0) >> 6;
+    uint8_t status = (buf_[0] & 0xC0) >> 6;
     if(status == 0x00) // good data packet
     {
-      int16_t raw_diff_pressure = 0x3FFF & ((buf[0] << 8) + buf[1]);
-      int16_t raw_temp = ( 0xFFE0 & ((buf[2] << 8) + buf[3])) >> 5;
+      int16_t raw_diff_pressure = 0x3FFF & ((buf_[0] << 8) + buf_[1]);
+      int16_t raw_temp = ( 0xFFE0 & ((buf_[2] << 8) + buf_[3])) >> 5;
       // Convert to Pa and K
-      raw_diff_pressure_Pa = -(((float)raw_diff_pressure - 1638.3f) / 6553.2f - 1.0f) * 6894.757;
-      temp_measurement = (0.097703957f * raw_temp)  + 223.0; // K
+      diff_press_ = -(((float)(raw_diff_pressure) - 1638.3f) / 6553.2f - 1.0f) * 6894.757f;
+      temp_ = ((200.0f * raw_temp) / 2047.0) - 50 ; // K
     }
+    new_data_ = false;
   }
-  (*temperature) = temp_measurement;
-  (*diff_press) = raw_diff_pressure_Pa;
+  (*differential_pressure) = diff_press_;
+  (*temp) = temp_;
 }
 
-
-void ms4525_async_update(void)
-{
-  static volatile uint32_t next_update_ms = 0;
-  uint32_t now_ms = millis();
-
-  // if it's not time to do anything, just return
-  if (now_ms < next_update_ms)
-  {
-    return;
-  }
-  else
-  {
-    i2c_queue_job(READ, MS4525_ADDR, 0xFF, buf, 4, &read_status, &ms4525_read_CB);
-    next_update_ms += 20; // Poll at 50 Hz
-  }
-  return;
-}

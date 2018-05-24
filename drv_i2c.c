@@ -296,7 +296,7 @@ static void i2c_er_handler(void)
   if (status)
     (*status) = I2C_JOB_ERROR;                                      // Update job status
   if (complete_CB != NULL)
-      complete_CB(*status);
+      complete_CB(I2C_JOB_ERROR);
   busy = 0;
   i2c_job_handler();
 }
@@ -410,7 +410,7 @@ void i2c_ev_handler(void)
       (*status) = I2C_JOB_COMPLETE;                               // Update status
     }
     if (complete_CB != NULL){
-      complete_CB(*status);                                              // Call the custom callback (we are finished)
+      complete_CB(I2C_JOB_COMPLETE);                                              // Call the custom callback (we are finished)
     }
     busy = 0;
     i2c_job_handler();                                              // Start the next job (if there is one on the queue)

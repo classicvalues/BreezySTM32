@@ -28,128 +28,107 @@
 
 #define MB1242_DEFAULT_ADDRESS 0x70
 
-static uint8_t start_measurement_command = 0x51;
-static uint8_t read_buffer[2] = {0,0};
-static volatile uint8_t start_measurement_status;
-static volatile uint8_t read_measurement_status;
-static uint8_t state = 0;
-static uint64_t last_update_time_us;
-static int32_t distance_cm;
+static const uint8_t START_MEASUREMENT_CMD = 0x51;
 
+static bool sensor_present_;
+static uint32_t last_update_time_ms_;
+static uint32_t next_update_time_ms_;
+static uint8_t buf_[2];
+static uint32_t distance_cm_;
+static float distance_;
+static bool new_data_ = false;
+static uint8_t cmd_;
+typedef enum
+{
+  START_MEAS,
+  READ_DATA
+} sonar_state_t;
+static sonar_state_t state_;
+typedef enum 
+{
+  START_MEAS_CB,
+  READ_DATA_CB
+} callack_type_t;
+static callack_type_t callback_type_;
+
+static void cb(uint8_t result);
+static void convert();
 
 bool mb1242_init()
 {
-  return i2cWrite(MB1242_DEFAULT_ADDRESS, 0xFF, start_measurement_command);
-}
-
-
-void start_sonar_measurement_CB(void)
-{
-  // indicate a completed started measurement
-  state = 1;
-}
-
-
-void mb1242_update()
-{
-  uint64_t now_us = micros();
-  if (now_us > last_update_time_us + 25000)
-  {
-    last_update_time_us = now_us;
-    if (state == 0)
-    {
-      // Start a sonar measurement,
-      i2cWrite(MB1242_DEFAULT_ADDRESS, 0xFF, start_measurement_command);
-      state = 1;
-    }
-    else if (state == 1) {
-      read_buffer[0] = 0;
-      read_buffer[1] = 0;
-      // Read the sonar measurement
-      i2cRead(MB1242_DEFAULT_ADDRESS, 0xFF, 2, read_buffer);
-
-      // convert to cm
-      distance_cm = (read_buffer[0] << 8) + read_buffer[1];
-      if (distance_cm > 850)
-      {
-          distance_cm = 0;
-      }
-      state = 0;
-    }
-  }
-}
-
-float mb1242_read()
-{
-  return (1.071 * (float)distance_cm + 3.103)/100.0; // emprically determined
-}
-
-
-//=============================================
-// Asynchronus data storage
-static uint8_t buf[2];
-static volatile uint8_t read_status;
-static float distance;
-static bool new_data = false;
-static bool sensor_present = false;
-
-void mb1242_start_read_CB(void)
-{
-  if (read_status != I2C_JOB_ERROR)
-  {
-    sensor_present = true;
-  }
-}
-
-void mb1242_read_CB(void)
-{
-  if (read_status != I2C_JOB_ERROR)
-  {
-    sensor_present = true;
-    new_data = true;
-  }
-}
-
-
-void mb1242_async_update()
-{
-  uint32_t now_ms = millis();
-  static uint32_t next_update_time_ms;
-  if (now_ms > next_update_time_ms)
-  {
-    next_update_time_ms += 25;  // 40 Hz update rate
-    if (state == 0)
-    {
-      // Start a sonar measurement,
-      i2c_queue_job(WRITE, MB1242_DEFAULT_ADDRESS, 0xFF, &start_measurement_command, 1,
-                    &read_status, &mb1242_start_read_CB);
-      state = 1;
-    }
-    else if (state == 1) {
-      // Read the sonar measurement
-      i2c_queue_job(READ, MB1242_DEFAULT_ADDRESS, 0xFF, buf, 2, &read_status, &mb1242_read_CB);
-      state = 0;
-    }
-  }
-}
-
-float mb1242_async_read()
-{
-  if (new_data)
-  {
-    // convert to cm
-    distance_cm = (buf[0] << 8) + buf[1];
-    if (distance_cm > 850)
-    {
-        distance_cm = 0;
-    }
-    distance = (1.071 * (float)distance_cm + 3.103)/100.0; // emprically determined
-  }
-  return distance;
+  last_update_time_ms_ = millis();
+  next_update_time_ms_ = millis();
+  if (i2cWrite(MB1242_DEFAULT_ADDRESS, 0xFF, START_MEASUREMENT_CMD))
+    sensor_present_ = true;
+  else
+    sensor_present_ = false;
+  state_ = START_MEAS;
+  return sensor_present_;
 }
 
 bool mb1242_present()
 {
-  return sensor_present;
+  if (sensor_present_ && millis() > last_update_time_ms_ + 400)
+    sensor_present_ = false;
+  return sensor_present_;
+}
+
+void mb1242_async_update()
+{
+  uint32_t now_ms = millis();
+  if (now_ms > next_update_time_ms_)
+  {
+    next_update_time_ms_ = now_ms +25;
+    switch (state_)
+    {
+    case START_MEAS:
+      callback_type_ = START_MEAS_CB;
+      cmd_ = START_MEASUREMENT_CMD;
+      i2c_queue_job(WRITE, MB1242_DEFAULT_ADDRESS, 0xFF, &cmd_, 1, NULL, &cb);
+      break;
+    case READ_DATA:
+      callback_type_ = READ_DATA_CB;
+      i2c_queue_job(READ, MB1242_DEFAULT_ADDRESS, 0xFF, buf_, 2, NULL, &cb);
+      break;
+    }
+  }
+  if (new_data_)
+    convert();
+}
+
+float mb1242_async_read()
+{
+  return distance_;
+}
+
+
+void cb(uint8_t result)
+{
+  if (result != I2C_JOB_ERROR)
+  {
+    sensor_present_ = true;
+    last_update_time_ms_ = millis();
+    
+    switch (callback_type_)
+    {
+      case START_MEAS_CB:
+        state_ = READ_DATA;
+        break;
+      case READ_DATA_CB:
+        state_ = START_MEAS;
+        new_data_ = true;
+        break;
+    }
+  }
+}
+
+void convert()
+{
+  distance_cm_ = (buf_[0] << 8) + buf_[1];
+  if (distance_cm_ > 850)
+  {
+      distance_cm_ = 0;
+  }
+  distance_ = (1.071 * (float)distance_cm_ + 3.103)/100.0;
 }
 

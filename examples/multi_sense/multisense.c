@@ -20,6 +20,7 @@
  */
 
 #include <breezystm32.h>
+#include <stdint.h>
 
 #define BOARD_REV 2
 
@@ -29,7 +30,7 @@ float gyro_scale; // converts to units of rad/s
 int16_t accel_data[3];
 int16_t gyro_data[3];
 volatile int16_t temp_data;
-int16_t mag_data[3];
+float mag_data[3];
 
 volatile uint8_t accel_status = 0;
 volatile uint8_t gyro_status = 0;
@@ -52,13 +53,13 @@ void setup(void)
   ms5611_init();
 
   // Init Mag
-  hmc5883lInit(BOARD_REV);
+  hmc5883lInit();
 
   // Init Sonar
-  //  mb1242_init();
+  mb1242_init();
 
   // Init Airspeed
-  //  airspeed_present = ms4525_detect();
+  ms4525_init();
 
   //Init IMU (has to come last because of the ISR)
   uint16_t acc1G;
@@ -71,8 +72,10 @@ void loop(void)
 
   float baro = 0;
   float temp = 0;
-  //  int32_t sonar = 0;
-  int32_t airspeed = 0;
+  float diff_pres = 0;
+  float diff_temp = 0;
+  float sonar = 0;
+    
   // Update Baro
   ms5611_async_update();
   if(ms5611_present())
@@ -80,25 +83,30 @@ void loop(void)
     ms5611_async_read(&baro, &temp);
   }
 
-//  // Update Mag
-//  hmc5883l_request_async_update();
-//  if(hmc5883l_present())
-//  {
-//    hmc5883l_async_read(mag_data);
-//  }
+  // Update Mag
+  hmc5883l_request_async_update();
+  if(hmc5883l_present())
+  {
+    hmc5883l_async_read(mag_data);
+  }
 
-  //  // Update Sonar
+  // Update Sonar
+  mb1242_async_update();
+  if (mb1242_present())
+  {
+    sonar = mb1242_async_read();
+  }
   //  if(sonar_present)
   //  {
   //    sonar = mb1242_poll();
   //  }
 
-  //  // Update Airspeed
-  //  if(airspeed_present)
-  //  {
-  //    ms4525_request_async_update();
-  //    airspeed = ms4525_read_velocity();
-  //  }
+    // Update Airspeed
+    ms4525_async_update();
+    if(ms4525_present())
+    {
+      ms4525_async_read(&diff_pres, &diff_temp);
+    }
 
   static uint64_t imu_timestamp_us = 0;
   if (mpu6050_new_data())
@@ -113,7 +121,12 @@ void loop(void)
     last_print_ms += 10;
     
     printf("err: %d\t", i2cGetErrorCounter());
-    printf("baro: %d Pa %d.%d K\t", (uint32_t) baro, (uint32_t) temp, (uint32_t)(temp*100)%100);
+    printf("acc: %d.%d, %d.%d, %d.%d\t", (int32_t)accel_data[0], (uint32_t)(accel_data[0]*100)%100,
+        (int32_t)accel_data[1], (uint32_t)(accel_data[1]*100)%100, (int32_t)accel_data[2], (uint32_t)(accel_data[2]*100)%100);
+    printf("baro: %d Pa %d.%d K\t", (uint32_t) baro, (int32_t) temp, (uint32_t)(temp*100)%100);
+    printf("mag: %d, %d, %d, \t", (int32_t) mag_data[0], (int32_t) mag_data[1], (int32_t) mag_data[2]);
+    printf("as: %d.%d, %d.%d\t", (int32_t)diff_pres, (uint32_t)(diff_pres*100)%100, (int32_t) diff_temp, (uint32_t)(diff_temp*100)%100);
+    printf("sonar: %d.%d", (int32_t)sonar, (uint32_t)(sonar*100)%100);
     
     printf("\n");
     

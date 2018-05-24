@@ -23,10 +23,6 @@
 
 bool mb1242_init();
 
-// Blocking Methods
-void mb1242_update();
-float mb1242_read();
-
 // Asynchronous Methods
 void mb1242_async_update();
 float mb1242_async_read();

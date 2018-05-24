@@ -22,10 +22,6 @@
 
 bool ms4525_init(void);
 
-// Blocking I2C function
-void ms4525_update();
-void ms4525_read(float *differential_pressure, float *temp);
-
 // Asynchronous I2C function
 bool ms4525_present(void);
 void ms4525_async_update(void);
