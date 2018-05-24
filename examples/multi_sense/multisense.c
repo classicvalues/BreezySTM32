@@ -80,12 +80,12 @@ void loop(void)
     ms5611_async_read(&baro, &temp);
   }
 
-  // Update Mag
-  hmc5883l_request_async_update();
-  if(hmc5883l_present())
-  {
-    hmc5883l_async_read(mag_data);
-  }
+//  // Update Mag
+//  hmc5883l_request_async_update();
+//  if(hmc5883l_present())
+//  {
+//    hmc5883l_async_read(mag_data);
+//  }
 
   //  // Update Sonar
   //  if(sonar_present)
@@ -111,12 +111,18 @@ void loop(void)
   if(millis() > last_print_ms + 10)
   {
     last_print_ms += 10;
-    printf("%d\t %d\t %d\t %d\t %d\t %d\n",
-           (int32_t)(accel_data[2]*accel_scale*1000.0f),
-        (int32_t)(gyro_data[2]*gyro_scale*1000.0f),
-        (int32_t)imu_timestamp_us,
-        (int32_t)mag_data[2],
-        (int32_t)baro,
-        (int32_t)i2cGetErrorCounter());
+    
+    printf("err: %d\t", i2cGetErrorCounter());
+    printf("baro: %d Pa %d.%d K\t", (uint32_t) baro, (uint32_t) temp, (uint32_t)(temp*100)%100);
+    
+    printf("\n");
+    
+//    printf("%d\t %d\t %d\t %d\t %d\t %d\n",
+////           (int32_t)(accel_data[2]*accel_scale*1000.0f),
+////        (int32_t)(gyro_data[2]*gyro_scale*1000.0f),
+//        (int32_t)imu_timestamp_us,
+//        (int32_t)mag_data[2],
+//        (int32_t)baro,
+//        (int32_t)i2cGetErrorCounter());
   }
 }

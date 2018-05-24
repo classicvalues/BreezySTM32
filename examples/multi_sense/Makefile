@@ -103,7 +103,8 @@ CFLAGS		 = $(ARCH_FLAGS) \
 		   -fdata-sections \
 		   -DSTM32F10X_MD \
 		   -DUSE_STDPERIPH_DRIVER \
-		   -D$(TARGET)
+		   -D$(TARGET) \
+                   -DBREEZYPRINTF
 
 ASFLAGS		 = $(ARCH_FLAGS) \
 		   -x assembler-with-cpp \

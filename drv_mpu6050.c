@@ -280,8 +280,9 @@ static volatile bool need_to_queue_new_i2c_job = false;
 uint8_t all_buffer[14];
 uint64_t measurement_time = 0;
 
-void read_all_CB(void)
+void read_all_CB(uint8_t result)
 {
+  (void) result;
   accel[0] = (int16_t)((all_buffer[0] << 8) | all_buffer[1]);
   accel[1] = (int16_t)((all_buffer[2] << 8) | all_buffer[3]);
   accel[2] = (int16_t)((all_buffer[4] << 8) | all_buffer[5]);

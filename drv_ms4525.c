@@ -90,9 +90,9 @@ static volatile uint8_t read_status;
 static bool new_data = false;
 static bool sensor_present = false;
 
-void ms4525_read_CB(void)
+void ms4525_read_CB(uint8_t result)
 {
-  if (read_status != I2C_JOB_ERROR)
+  if (result != I2C_JOB_ERROR)
   {
     new_data = true;
     sensor_present = true;

@@ -48,7 +48,7 @@ typedef struct i2cJob{
     uint8_t length;
     struct i2cJob* next_job;
     volatile uint8_t* status;
-    void (*CB)(void);
+    void (*CB)(uint8_t);
 } i2cJob_t;
 
 #define I2C_BUFFER_SIZE 16
@@ -74,4 +74,4 @@ bool i2cRead(uint8_t addr_, uint8_t reg, uint8_t len, uint8_t *buf);
 //
 // For an example of how to use, check out mpu6050_request_read_temp - the non-blocking way to read
 // the accelerometer
-void i2c_queue_job(i2cJobType_t type, uint8_t addr_, uint8_t reg_, uint8_t *data, uint8_t length, volatile uint8_t *status_, void (*CB)(void));
+void i2c_queue_job(i2cJobType_t type, uint8_t addr_, uint8_t reg_, uint8_t *data, uint8_t length, volatile uint8_t *status_, void (*CB)(uint8_t));

@@ -18,7 +18,7 @@
    You should have received a copy of the GNU General Public License
    along with BreezySTM32.  If not, see <http://www.gnu.org/licenses/>.
  */
-#define BREEZYPRINTF
+
 #include "breezystm32.h"
 
 serialPort_t * Serial1;

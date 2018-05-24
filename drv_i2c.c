@@ -100,7 +100,7 @@ static volatile uint8_t reading;
 static volatile uint8_t *write_p;
 static volatile uint8_t *read_p;
 static volatile uint8_t *status;
-static void (*complete_CB)(void);
+static void (*complete_CB)(uint8_t);
 
 static bool i2cHandleHardwareFailure(void)
 {
@@ -193,7 +193,7 @@ bool i2cRead(uint8_t addr_, uint8_t reg_, uint8_t len, uint8_t *buf)
   return !error;
 }
 
-bool i2cReadAsync(uint8_t addr_, uint8_t reg_, uint8_t len, uint8_t *buf, volatile uint8_t* status_, void (*CB)(void))
+bool i2cReadAsync(uint8_t addr_, uint8_t reg_, uint8_t len, uint8_t *buf, volatile uint8_t* status_, void (*CB)(uint8_t))
 {
   uint32_t timeout = I2C_DEFAULT_TIMEOUT;
 
@@ -226,7 +226,7 @@ bool i2cReadAsync(uint8_t addr_, uint8_t reg_, uint8_t len, uint8_t *buf, volati
   return true;
 }
 
-bool i2cWriteAsync(uint8_t addr_, uint8_t reg_, uint8_t len_, uint8_t *buf_, volatile uint8_t* status_, void (*CB)(void))
+bool i2cWriteAsync(uint8_t addr_, uint8_t reg_, uint8_t len_, uint8_t *buf_, volatile uint8_t* status_, void (*CB)(uint8_t))
 {
   uint32_t timeout = I2C_DEFAULT_TIMEOUT;
 
@@ -296,7 +296,7 @@ static void i2c_er_handler(void)
   if (status)
     (*status) = I2C_JOB_ERROR;                                      // Update job status
   if (complete_CB != NULL)
-      complete_CB();
+      complete_CB(*status);
   busy = 0;
   i2c_job_handler();
 }
@@ -410,7 +410,7 @@ void i2c_ev_handler(void)
       (*status) = I2C_JOB_COMPLETE;                               // Update status
     }
     if (complete_CB != NULL){
-      complete_CB();                                              // Call the custom callback (we are finished)
+      complete_CB(*status);                                              // Call the custom callback (we are finished)
     }
     busy = 0;
     i2c_job_handler();                                              // Start the next job (if there is one on the queue)
@@ -576,7 +576,7 @@ void i2c_job_handler()
   return;
 }
 
-void i2c_queue_job(i2cJobType_t type, uint8_t addr_, uint8_t reg_, uint8_t *data, uint8_t length, volatile uint8_t* status_, void (*CB)(void))
+void i2c_queue_job(i2cJobType_t type, uint8_t addr_, uint8_t reg_, uint8_t *data, uint8_t length, volatile uint8_t* status_, void(*CB)(uint8_t))
 {
   // If this job were going to overflow the buffer, ignore it.
   if (i2c_buffer_count >= I2C_BUFFER_SIZE)
