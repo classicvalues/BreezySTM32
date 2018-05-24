@@ -150,11 +150,14 @@ void bmp280_read(float* pres, float* temp)
 
 /// ASYNC Methods
 static volatile uint8_t async_read_status;
-static void bmp280_async_read_cb(void)
+static void bmp280_async_read_cb(uint8_t result)
 {
-  new_data = true;
-  pressure_raw = (int32_t)((((uint32_t)(buffer[0])) << 12) | (((uint32_t)(buffer[1])) << 4) | ((uint32_t)buffer[2] >> 4));
-  temperature_raw = (int32_t)((((uint32_t)(buffer[3])) << 12) | (((uint32_t)(buffer[4])) << 4) | ((uint32_t)buffer[5] >> 4));
+  if (result != I2C_JOB_ERROR)
+  {
+    new_data = true;
+    pressure_raw = (int32_t)((((uint32_t)(buffer[0])) << 12) | (((uint32_t)(buffer[1])) << 4) | ((uint32_t)buffer[2] >> 4));
+    temperature_raw = (int32_t)((((uint32_t)(buffer[3])) << 12) | (((uint32_t)(buffer[4])) << 4) | ((uint32_t)buffer[5] >> 4));
+  }
 }
 
 void bmp280_async_update()
