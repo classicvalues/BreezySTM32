@@ -61,7 +61,7 @@ void ms4525_async_update()
 
 bool ms4525_present()
 {
-  if (sensor_present_ && millis() > last_update_ms_ + 200)
+  if (sensor_present_ && millis() > last_update_ms_ + 1000)
     sensor_present_ = false;
   return sensor_present_;
 }

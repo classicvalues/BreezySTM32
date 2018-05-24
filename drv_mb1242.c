@@ -68,7 +68,7 @@ bool mb1242_init()
 
 bool mb1242_present()
 {
-  if (sensor_present_ && millis() > last_update_time_ms_ + 400)
+  if (sensor_present_ && millis() > last_update_time_ms_ + 1000)
     sensor_present_ = false;
   return sensor_present_;
 }

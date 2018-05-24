@@ -110,7 +110,7 @@ bool hmc5883lInit()
 
 bool hmc5883l_present()
 {
-  if (mag_present_ && millis() > last_update_ms_ + 200)
+  if (mag_present_ && millis() > last_update_ms_ + 1000)
     mag_present_ = false;
   return mag_present_;
 }
